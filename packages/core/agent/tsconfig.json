@@ -18,6 +18,9 @@
       "path": "../../core/scope"
     },
     {
+      "path": "../../util/execution-world"
+    },
+    {
       "path": "../../llm/llm"
     },
     {

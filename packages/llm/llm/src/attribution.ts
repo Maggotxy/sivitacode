@@ -32,15 +32,14 @@ export interface AppIdentity {
 }
 
 /**
- * The harness's own identity: the default every adapter sends. Deployments
- * that need a white-label identity pass their own {@link AppIdentity} to
- * {@link attributionHeaders} — omission falls back to this default; nothing
- * can suppress attribution entirely.
+ * SivitaCode's public identity: the default every adapter sends. The legacy
+ * `dsh` command is a compatibility entry into this fork, not a license to
+ * identify provider traffic as the upstream application.
  */
 export const APP_IDENTITY: AppIdentity = {
-  product: 'deepseek-harness',
+  product: 'sivitacode',
   version,
-  url: 'https://github.com/deepseek-ai/deepseek-harness',
+  url: 'https://code.sivita.xyz',
 }
 
 /**

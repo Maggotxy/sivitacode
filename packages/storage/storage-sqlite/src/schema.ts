@@ -6,7 +6,7 @@
  * @module @deepseek-ai/dsh-storage-sqlite/schema
  */
 
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { StorageError } from '@deepseek-ai/dsh-storage'
@@ -64,6 +64,13 @@ export async function openDatabase(path: string, journalMode: JournalMode): Prom
     await mkdir(dirname(actual), { recursive: true, mode: 0o700 })
     await createDatabaseFile(actual)
   }
+  // Keep the experimental Node SQLite module out of process startup. Loader
+  // imports plugin modules while composing a profile even when an injected
+  // startup service prevents their rows from activating (for example
+  // `sivitacode web --help`). Import the runtime only once the backend really
+  // opens its medium, so help and rejected command lines remain side-effect
+  // free and warning-free.
+  const { DatabaseSync } = await import('node:sqlite')
   const db = new DatabaseSync(actual)
   try {
     configureDatabase(db, actual, journalMode)

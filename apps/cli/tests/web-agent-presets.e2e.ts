@@ -49,7 +49,7 @@ async function bootWeb(
   extra: PatchOptions[] = [],
   extraInstallAnchor?: string,
 ): Promise<Context> {
-  const storageRoot = join(dirname(settingsFile), 'storages')
+  const storagePath = join(dirname(settingsFile), 'sivitacode.db')
   const patches: PatchOptions[] = [
     ...loadOverlayPatches('dsh-test', BASE_PATCH),
     ...loadOverlayPatches('dsh-test', WEB_PATCH),
@@ -59,11 +59,11 @@ async function bootWeb(
     // outcome. Point it at a temp file for the same reason the roster below
     // names only the shipped root.
     { id: 'settings', config: { path: settingsFile, watch: false } },
-    // storage-json's root is anchored to the real $DSH_HOME. Unpinned, this
-    // file writes the developer's own `~/.dsh/storages/` — and then reads it
+    // storage-sqlite's path is anchored to the real $DSH_HOME. Unpinned, this
+    // file writes the developer's own database — and then reads it
     // back on the next run, so a stored document from any other build decides
     // this test's boot. Same reason the settings row above is pinned.
-    { id: 'storage-json', config: { root: storageRoot } },
+    { id: 'storage-sqlite', config: { path: storagePath, journalMode: 'wal' } },
     // Host rows with side effects outside this process: a bound port, a served
     // asset tree, a telemetry exporter. `api-gateway` and `directory-picker`
     // stay ENABLED on purpose — the api-proxy is the host row that injects

@@ -537,6 +537,7 @@ function sessionListFields(header: SessionHeader, events: readonly SessionEvent[
   origin?: 'subagent'
   cwd?: string
   agentPreset?: string
+  executionTarget?: import('@deepseek-ai/dsh-execution-world').ExecutionTargetId
 } {
   // The preset comes from the log, not the header: a session that switched
   // while blank ran its turns under the newer composition, and a picker
@@ -547,6 +548,7 @@ function sessionListFields(header: SessionHeader, events: readonly SessionEvent[
     ...header.origin === undefined ? {} : { origin: header.origin },
     ...header.cwd === undefined ? {} : { cwd: header.cwd },
     ...agentPreset === undefined ? {} : { agentPreset },
+    ...header.executionTarget === undefined ? {} : { executionTarget: header.executionTarget },
   }
 }
 
@@ -1620,6 +1622,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId?: string,
+    executionTarget?: import('@deepseek-ai/dsh-execution-world').ExecutionTargetId,
   ): Promise<Agent> {
     let creation = sessionCreations.get(sessionId)
     if (creation === undefined) {
@@ -1646,6 +1649,9 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           if (inspected.meta.cwd !== cwd) {
             throw new SessionCwdConflict(sessionId, cwd, inspected.meta.cwd)
           }
+          if (executionTarget !== undefined && inspected.meta.executionTarget !== executionTarget) {
+            throw new Error(`session "${sessionId}" already belongs to execution target ${JSON.stringify(inspected.meta.executionTarget)}`)
+          }
           // Resolved from the log, not the header: a session that switched
           // while blank ran every turn under the newer composition.
           const storedPreset = resolveSessionPreset({ header: inspected.meta, events: inspected.events })
@@ -1661,10 +1667,12 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })).agent
         }
 
-        try {
-          await mkdir(cwd, { recursive: true })
-        } catch (error: unknown) {
-          throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+        if (executionTarget === undefined) {
+          try {
+            await mkdir(cwd, { recursive: true })
+          } catch (error: unknown) {
+            throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+          }
         }
         const composition = await composeAgent(presetId)
         return (await ctx.agents.create({
@@ -1673,6 +1681,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           meta: {
             cwd,
             ...composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset },
+            ...executionTarget === undefined ? {} : { executionTarget },
           },
           setup: composition.setup,
         })).agent
@@ -2180,7 +2189,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
         const requestedPreset = request.payload.agentPreset
         try {
-          await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset)
+          await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset, request.payload.executionTarget)
         } catch (error: unknown) {
           if (error instanceof AgentPresetConflict) {
             return err(request, {
@@ -2425,6 +2434,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             seed: events.slice(0, cut),
             meta: {
               ...source.header.cwd === undefined ? {} : { cwd: source.header.cwd },
+              ...source.header.executionTarget === undefined ? {} : { executionTarget: source.header.executionTarget },
               parentSession: source.id,
               seedLength: cut,
               ...forkComposition.agentPreset === undefined

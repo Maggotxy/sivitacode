@@ -1994,6 +1994,47 @@ describe('workspace context request injection', () => {
     }
   })
 
+  it('loads workspace instructions through the selected execution-target filesystem', async () => {
+    const root = join(await tempRepo(), 'routed-repo')
+    const home = join(await tempRepo(), 'routed-home')
+    const ctx = new Context()
+    try {
+      await ctx.plugin(RecordingFileSystem)
+      const control = ctx.fs as RecordingFileSystem
+      control.entries.set(join(root, '.git'), { type: 'directory' })
+      control.entries.set(join(root, 'AGENTS.md'), { type: 'file', content: 'control-plane rule' })
+      await ctx.plugin(workspaceContext, { dshHome: home, maxBytes: 65536 })
+
+      const targetContext = ctx.isolate('fs', Symbol('instruction-target'))
+      await targetContext.plugin(RecordingFileSystem)
+      const target = targetContext.fs as RecordingFileSystem
+      target.entries.set(join(root, '.git'), { type: 'directory' })
+      target.entries.set(join(root, 'AGENTS.md'), { type: 'file', content: 'execution-target rule' })
+      const base = stubAgent(root)
+      const session = Session.create(base.session.id, [], {
+        version: SESSION_FORMAT_VERSION, id: base.session.id, createdAt: 0, cwd: root,
+        executionTarget: 'target-a' as never,
+      })
+      const agent = {
+        ...base,
+        ctx: targetContext,
+        session,
+        inbox: new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }),
+      }
+
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(derivedText(agent)).toContain('execution-target rule')
+      expect(derivedText(agent)).not.toContain('control-plane rule')
+      expect(target.readTargets).toEqual([join(root, 'AGENTS.md')])
+      expect(control.readTargets).toEqual([])
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(dirname(root), { recursive: true, force: true })
+      await rm(dirname(home), { recursive: true, force: true })
+    }
+  })
+
   it('loads provider-visible instruction files that do not exist on the host filesystem', async () => {
     const root = join(await tempRepo(), 'virtual-repo')
     const home = join(await tempRepo(), 'virtual-home')

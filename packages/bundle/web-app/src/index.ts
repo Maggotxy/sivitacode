@@ -47,12 +47,15 @@ export interface Config {
   surfaceContext: boolean
   /** Explicit `--trusted-host` authorities from this invocation. */
   trustedHosts: string[]
+  /** Canonical public HTTPS origin, when a reverse proxy fronts this process. */
+  publicOrigin?: string
 }
 
 export const Config: z<Config> = z.object({
   printUrl: z.boolean().default(true),
   surfaceContext: z.boolean().default(true),
   trustedHosts: z.array(String).default([]),
+  publicOrigin: z.string(),
 })
 
 /** Bind-dependent Web values shared by the trust fence and URL display. */
@@ -93,15 +96,18 @@ export function resolveLanTrust(bindHost: string, extra: readonly string[]): Web
 
 /** Model-visible orientation and acceptance boundary for sessions created through `dsh web`. */
 function webSurfacePrompt(webUrl: string): string {
+  const sivita = process.env.SIVITACODE_PRODUCT === '1'
+  const product = sivita ? 'SivitaCode' : 'DeepSeek Harness'
+  const command = sivita ? 'sivitacode web' : 'dsh web'
   const updateContract = 'The client-plugin HMR receiver is active, but client-plugin changes reload without a refresh only while '
     + '`pnpm run dev:web` is also running from this same checkout to rebuild their bundles; verify that watcher before promising automatic updates. '
     + 'Every other change — the apps/web shell and plain packages — requires rebuilding the affected Web artifacts and verifying this existing URL after a page refresh. '
-  return `You are interacting with the user through the DeepSeek Harness Web GUI at ${webUrl}. `
+  return `You are interacting with the user through the ${product} Web GUI at ${webUrl}. `
     + 'When the user refers to "this page", "this GUI", or "this app" without naming another target, they mean this GUI. '
     + 'The browser provides no implicit DOM, route, or screenshot context. '
     + updateContract
     + 'Starting another server does not update this GUI. '
-    + 'The apps/web Vite entry builds the shell but is not a standalone application because only dsh web injects window.__DSH_BOOT__. '
+    + `The apps/web Vite entry builds the shell but is not a standalone application because only ${command} injects window.__DSH_BOOT__. `
     + 'Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.'
 }
 
@@ -110,6 +116,11 @@ function localWebUrl(ctx: Context): string {
   const port = ctx.get('webServer')?.port
   if (port === undefined) throw new Error('web-app: webServer service missing while resolving Web runtime')
   return `http://${LOOPBACK_HOST}:${String(port)}`
+}
+
+/** Prefer the deployment's browser-facing origin over the private bind URL. */
+function browserWebUrl(ctx: Context, publicOrigin: string | undefined): string {
+  return publicOrigin ?? localWebUrl(ctx)
 }
 
 /** Dist location is workspace knowledge of this bundle: resolved through the frontend package exports, not configured. */
@@ -143,16 +154,17 @@ export function apply(ctx: Context, config: Config): void {
       promptCtx.systemPrompt.section({
         name: 'app:web-surface',
         order: -98,
-        text: () => webSurfacePrompt(localWebUrl(promptCtx)),
+        text: () => webSurfacePrompt(browserWebUrl(promptCtx, config.publicOrigin)),
       })
     })
     ctx.inject(['shellEnv'], (runtimeCtx) => {
+      const product = process.env.SIVITACODE_PRODUCT === '1' ? 'SivitaCode' : 'DeepSeek Harness'
       runtimeCtx.shellEnv.register({
         name: 'web-runtime',
         variables: {
-          [DSH_WEB_URL]: { description: 'Canonical local URL of the DeepSeek Harness Web GUI serving this session.' },
+          [DSH_WEB_URL]: { description: `Canonical URL of the ${product} Web GUI serving this session.` },
         },
-        resolve: () => ({ [DSH_WEB_URL]: localWebUrl(runtimeCtx) }),
+        resolve: () => ({ [DSH_WEB_URL]: browserWebUrl(runtimeCtx, config.publicOrigin) }),
       })
     })
   }
@@ -163,9 +175,14 @@ export function apply(ctx: Context, config: Config): void {
     // settlement first; a hand-built tree without a Loader prints at once.
     const printUrl = (): void => {
       // Reuse the exact LAN snapshot provided to the /api trust fence.
+      const command = process.env.SIVITACODE_PRODUCT === '1' ? 'sivitacode web' : 'dsh web'
+      if (config.publicOrigin !== undefined) {
+        console.log(`${command}: ${config.publicOrigin}`)
+        return
+      }
       const lanCandidate = runtime.lanAddresses[0]
       const port = ctx.webServer.port
-      console.log(`dsh web: ${localWebUrl(ctx)}${lanCandidate === undefined ? '' : ` (LAN: http://${lanCandidate}:${String(port)})`}`)
+      console.log(`${command}: ${localWebUrl(ctx)}${lanCandidate === undefined ? '' : ` (LAN: http://${lanCandidate}:${String(port)})`}`)
     }
     // This row's own activation can precede a sibling failure. The app owns
     // readiness by waiting for its Loader tree, or prints at once in a

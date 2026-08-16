@@ -208,6 +208,57 @@ describe('CI workflow', () => {
   })
 })
 
+describe('dsh release workflow', () => {
+  it('builds and boots native Linux and macOS SivitaCode server artifacts before upload', () => {
+    const workflow = loadWorkflow('.github/workflows/release.yml')
+    const server = workflowJob(workflow, 'server')
+    const publish = workflowJob(workflow, 'publish')
+    if (!Array.isArray(server.steps) || !isRecord(server.strategy) || !isRecord(server.strategy.matrix)
+      || !Array.isArray(server.strategy.matrix.include)) {
+      throw new TypeError('dsh release server job must define matrix steps')
+    }
+    const targets = server.strategy.matrix.include
+    expect(targets).toEqual([
+      { os: 'ubuntu-24.04', platform: 'linux', arch: 'x64', landlock: true },
+      { os: 'ubuntu-24.04-arm', platform: 'linux', arch: 'arm64', landlock: true },
+      { os: 'macos-latest', platform: 'darwin', arch: 'arm64', landlock: false },
+      { os: 'macos-15-intel', platform: 'darwin', arch: 'x64', landlock: false },
+    ])
+    const steps = server.steps.filter(isRecord)
+    const landlockBuild = steps.find(step => step.name === 'Build and pack native Landlock launcher')
+    const landlockVerify = steps.find(step => step.name === 'Verify native Landlock confinement')
+    const ssh = steps.find(step => step.name === 'Verify portable SSH process ownership')
+    const archiveTool = steps.find(step => step.name === 'Install reproducible archive tool')
+    const bundle = steps.find(step => step.name === 'Build SivitaCode server artifact')
+    const verify = steps.find(step => step.name === 'Verify installed SivitaCode Web, ACP, and confinement')
+    const upload = steps.find(step => step.uses === 'actions/upload-artifact@v4'
+      && isRecord(step.with) && step.with.name === 'sivitacode-server-${{ matrix.platform }}-${{ matrix.arch }}')
+
+    expect(landlockBuild?.run).toContain('build:native')
+    expect(landlockBuild?.run).toContain('--current-platform-only')
+    expect(landlockVerify).toMatchObject({ env: { NALR_REQUIRE_LANDLOCK: '1' } })
+    expect(landlockVerify?.run).toContain('verify-packed-install.mjs')
+    expect(ssh?.run).toContain('subprocess-ssh/tests/process.spec.ts')
+    expect(archiveTool).toMatchObject({ if: "matrix.platform == 'darwin'", run: 'brew install gnu-tar' })
+    expect(bundle?.run).toContain('release:server-bundle')
+    expect(bundle?.run).toContain('--from dist/npm-landlock')
+    expect(verify?.run).toContain('release:verify-server-install')
+    expect(verify?.run).toContain('--checksum "$archive.sha256"')
+    expect(verify?.run).toContain('--require-landlock')
+    expect(upload).toMatchObject({
+      with: {
+        name: 'sivitacode-server-${{ matrix.platform }}-${{ matrix.arch }}',
+        path: 'dist/server/*',
+        'if-no-files-found': 'error',
+      },
+    })
+    expect(steps.indexOf(landlockVerify!)).toBeLessThan(steps.indexOf(bundle!))
+    expect(steps.indexOf(bundle!)).toBeLessThan(steps.indexOf(verify!))
+    expect(steps.indexOf(verify!)).toBeLessThan(steps.indexOf(upload!))
+    expect(publish.needs).toEqual(['pack', 'server'])
+  })
+})
+
 describe('E2B e2e workflow', () => {
   it('is manual-only and fails loud before running the focused live suite', () => {
     const workflow = loadWorkflow('.github/workflows/e2b-e2e.yml')

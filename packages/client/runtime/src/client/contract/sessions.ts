@@ -19,6 +19,7 @@ import type {
 } from '../sessions/service.ts'
 import type { SessionFace } from './session.ts'
 import type { ObservableSnapshot } from './store.ts'
+import type { ExecutionTargetId } from '@deepseek-ai/dsh-execution-world'
 
 export type { AgentContext } from '../agents/scope.ts'
 
@@ -84,6 +85,8 @@ export interface ISessions {
     query: string,
     signal: AbortSignal,
   ): Promise<RpcResult<{ items: SessionSearchResultItem[]; hasMore: boolean }>>
+  /** Create and publish a session, optionally fixed to one durable execution target. */
+  create(opts?: { workspaceId?: import('@deepseek-ai/dsh-api-remotes/client').WorkspaceId; cwd?: string; sessionId?: SessionId; executionTarget?: ExecutionTargetId }): Promise<SessionId>
   /**
    * Fork a session from a completed-turn prefix of the source; on resolution
    * the child is in the list store and `open()` can target it.

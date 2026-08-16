@@ -1,0 +1,22 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types", "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo" },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../../identity/access-control" },
+    { "path": "../../credentials/credentials" },
+    { "path": "../../ssh/ssh" },
+    { "path": "../../container/oci" },
+    { "path": "../../ssh/fs-ssh" },
+    { "path": "../../git/worktree" },
+    { "path": "../../ssh/subprocess-ssh" },
+    { "path": "../../fs/fs-local" },
+    { "path": "../../subprocess/subprocess-local" },
+    { "path": "../../shell/bash-local" },
+    { "path": "../../util/execution-world" },
+    { "path": "../../storage/storage-domain" },
+    { "path": "../../typert/protocol" },
+    { "path": "../../util/brand" }
+  ]
+}

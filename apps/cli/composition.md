@@ -54,6 +54,8 @@ flowchart LR
   cfg --> plugin_dsh_base_session_telemetry_otel
   plugin_dsh_base_subprocess["subprocess<br/>@deepseek-ai/dsh-subprocess-local"]
   cfg --> plugin_dsh_base_subprocess
+  plugin_dsh_base_git_worktrees["git-worktrees<br/>@deepseek-ai/dsh-git-worktree"]
+  cfg --> plugin_dsh_base_git_worktrees
   plugin_dsh_base_sandbox["sandbox<br/>@deepseek-ai/dsh-sandbox-local"]
   cfg --> plugin_dsh_base_sandbox
   plugin_dsh_base_sandbox_policy["sandbox-policy<br/>@deepseek-ai/dsh-sandbox-policy"]
@@ -162,6 +164,10 @@ flowchart LR
   cfg --> plugin_dsh_base_agent_loop
   plugin_dsh_base_fs_sandbox["fs-sandbox<br/>@deepseek-ai/dsh-fs-sandbox"]
   cfg --> plugin_dsh_base_fs_sandbox
+  plugin_dsh_base_execution_world_coherence["execution-world-coherence<br/>@deepseek-ai/dsh-execution-world-coherence"]
+  cfg --> plugin_dsh_base_execution_world_coherence
+  plugin_dsh_base_execution_world_router["execution-world-router<br/>@deepseek-ai/dsh-execution-world"]
+  cfg --> plugin_dsh_base_execution_world_router
   plugin_dsh_base_llm_deepseek["llm-deepseek<br/>@deepseek-ai/dsh-llm-deepseek"]
   cfg --> plugin_dsh_base_llm_deepseek
 ```
@@ -191,6 +197,7 @@ flowchart LR
 | `session-projection` | `@deepseek-ai/dsh-session-projection` |
 | `session-telemetry-otel` | `@deepseek-ai/dsh-session-telemetry-otel` |
 | `subprocess` | `@deepseek-ai/dsh-subprocess-local` |
+| `git-worktrees` | `@deepseek-ai/dsh-git-worktree` |
 | `sandbox` | `@deepseek-ai/dsh-sandbox-local` |
 | `sandbox-policy` | `@deepseek-ai/dsh-sandbox-policy` |
 | `bash-sandbox` | `@deepseek-ai/dsh-bash-sandbox` |
@@ -245,6 +252,8 @@ flowchart LR
 | `system-prompt` | `@deepseek-ai/dsh-system-prompt` |
 | `agent-loop` | `@deepseek-ai/dsh-agent-loop` |
 | `fs-sandbox` | `@deepseek-ai/dsh-fs-sandbox` |
+| `execution-world-coherence` | `@deepseek-ai/dsh-execution-world-coherence` |
+| `execution-world-router` | `@deepseek-ai/dsh-execution-world` |
 | `llm-deepseek` | `@deepseek-ai/dsh-llm-deepseek` |
 
 Source config: [`packages/bundle/base/cordis.patch.yml`](../../packages/bundle/base/cordis.patch.yml).

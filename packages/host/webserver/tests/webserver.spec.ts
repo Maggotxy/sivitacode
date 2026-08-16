@@ -101,6 +101,34 @@ describe('real Loader composition', () => {
     const port = server.port
     expect(port).toBeGreaterThan(0)
 
+    // Guards own rejection before any route or fallback runs, preserve
+    // registration order, and become removable without disturbing routes.
+    const guardedRouteHits: string[] = []
+    const removeFirstGuard = server.guardRequests((_req, _res) => {
+      guardedRouteHits.push('first')
+      return true
+    })
+    const removeRejectGuard = server.guardRequests((req, res) => {
+      guardedRouteHits.push('second')
+      if (req.headers['x-test-auth'] === 'allow') return true
+      res.writeHead(401)
+      res.end('AUTH')
+      return false
+    })
+    server.register({ kind: 'exact', path: '/guarded', handler: (_req, res) => {
+      guardedRouteHits.push('route')
+      res.writeHead(200)
+      res.end('GUARDED')
+    } })
+    expect(await request(port, '/guarded')).toMatchObject({ status: 401, body: 'AUTH' })
+    expect(guardedRouteHits).toEqual(['first', 'second'])
+    guardedRouteHits.length = 0
+    expect(await request(port, '/guarded', { headers: { 'x-test-auth': 'allow' } }))
+      .toMatchObject({ status: 200, body: 'GUARDED' })
+    expect(guardedRouteHits).toEqual(['first', 'second', 'route'])
+    removeFirstGuard()
+    removeRejectGuard()
+
     // Routing precedence: exact beats prefix, longest prefix wins, a prefix
     // route answers its own path, and routes own their method handling
     // (POST reaches a registered prefix; 405 is fallback-only semantics).
@@ -156,16 +184,40 @@ describe('real Loader composition', () => {
     // become registrable again after disposal. The accepted socket stays open
     // so the teardown assertion also covers upgraded-connection ownership.
     let upgradedServerClosed = false
+    let upgradeRouteHits = 0
+    const removeUpgradeGuard = server.guardUpgrades((req, socket) => {
+      if (req.headers['x-test-auth'] === 'allow') return true
+      socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+      return false
+    })
     const disposeUpgrade = server.registerUpgrade({
       path: '/events',
       handler: (_req, socket) => {
+        upgradeRouteHits++
         socket.once('close', () => { upgradedServerClosed = true })
         socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\n')
       },
     })
     expect(() => server.registerUpgrade({ path: '/events', handler: () => {} }))
       .toThrow(/duplicate upgrade route/)
+    const rejectedUpgrade = connect(port, '127.0.0.1')
+    await once(rejectedUpgrade, 'connect')
+    const rejectedResponse = once(rejectedUpgrade, 'data')
+    rejectedUpgrade.write([
+      'GET /events HTTP/1.1',
+      `Host: 127.0.0.1:${String(port)}`,
+      'Connection: Upgrade',
+      'Upgrade: dsh-test',
+      '',
+      '',
+    ].join('\r\n'))
+    const [rejectedData] = await rejectedResponse as [Buffer]
+    expect(String(rejectedData)).toContain('401 Unauthorized')
+    expect(upgradeRouteHits).toBe(0)
+    rejectedUpgrade.destroy()
+    removeUpgradeGuard()
     const upgraded = await upgrade(port, '/events?stream=mux')
+    expect(upgradeRouteHits).toBe(1)
     disposeUpgrade()
     expect(() => server.registerUpgrade({ path: '/events', handler: () => {} })).not.toThrow()
 

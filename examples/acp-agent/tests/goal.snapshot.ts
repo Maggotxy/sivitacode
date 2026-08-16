@@ -70,6 +70,7 @@ describe('same-session goal snapshot through the ACP automation driver', () => {
     const result = await runScenario(input, {
       agent,
       mode: 'replay',
+      env: { NODE_NO_WARNINGS: '1' },
       fixtureFile,
       overrideFile,
       configPath: agent.configPath,
@@ -119,6 +120,7 @@ describe('same-session goal snapshot through the ACP automation driver', () => {
     const result = await runScenario(input, {
       agent,
       mode: 'replay',
+      env: { NODE_NO_WARNINGS: '1' },
       fixtureFile: join(wrapupDir, 'session.jsonl'),
       overrideFile: join(wrapupDir, 'replay.override.json'),
       configPath: agent.configPath,

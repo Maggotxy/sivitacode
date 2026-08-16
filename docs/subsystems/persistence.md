@@ -86,6 +86,8 @@ interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /** Durable execution target whose filesystem, processes, terminals, and LSP serve this session. */
+  readonly executionTarget?: ExecutionTargetId
 }
 ```
 
@@ -118,6 +120,7 @@ interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    readonly executionTarget?: ExecutionTargetId
   }
 }
 ```
@@ -294,6 +297,18 @@ abstract create(meta: SessionHeader): Promise<void>
  * @param events - the contiguous batch to persist, in seq order.
  */
 abstract append(id: SessionId, events: readonly SessionEvent[]): Promise<void>
+
+/**
+ * Permanently delete one inactive materialized session.
+ *
+ * The default preserves compatibility for third-party append-only backends
+ * while making unsupported deletion explicit. First-party backends override
+ * this through the shared coordinator, which refuses live or reserved ids.
+ * @param _id - persisted session identity.
+ * @param signal - optional cancellation before destructive storage work starts.
+ * @returns whether a materialized session existed and was deleted.
+ */
+delete(_id: SessionId, signal?: AbortSignal): Promise<boolean>
 
 /**
  * Prepare the exact unpublished Session used by resume. Implementations may

@@ -12,11 +12,13 @@ it('ships install metadata with the built web application', async () => {
   const manifest: unknown = JSON.parse(await readFile(join(DIST_ROOT, 'manifest.webmanifest'), 'utf8'))
   expect(manifest).toEqual({
     id: '/',
-    name: 'DeepSeek Harness',
-    short_name: 'DSH',
+    name: 'SivitaCode',
+    short_name: 'SivitaCode',
     start_url: '/',
     scope: '/',
     display: 'fullscreen',
+    background_color: '#100b20',
+    theme_color: '#6d28d9',
     icons: [{
       src: '/favicon.svg',
       sizes: 'any',
@@ -26,10 +28,10 @@ it('ships install metadata with the built web application', async () => {
   })
 })
 
-it('ships a favicon that switches to a light mark under dark color scheme', async () => {
+it('ships the SivitaCode pulse favicon', async () => {
   const favicon = await readFile(join(DIST_ROOT, 'favicon.svg'), 'utf8')
-  // The light fill must live inside the dark-scheme media query, so the icon
-  // stays black in light mode and only turns white under a dark scheme.
-  expect(favicon).toMatch(/@media \(prefers-color-scheme: dark\)\s*{\s*path\s*{[^}]*fill:\s*#fff/i)
-  expect(favicon).toContain('fill="#000"')
+  expect(favicon).toContain('linearGradient id="pulse"')
+  expect(favicon).toContain('#8B5CF6')
+  expect(favicon).toContain('#06B6D4')
+  expect(favicon).toContain('stroke-linecap="round"')
 })

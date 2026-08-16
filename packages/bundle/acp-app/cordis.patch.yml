@@ -1,0 +1,47 @@
+# SivitaCode's ACP automation surface over the shared base runtime. Stdout is
+# exclusively ACP JSON-RPC. Web and ACP use the same $SIVITACODE_HOME storage,
+# so targets configured in Web are selected here by durable id.
+
+- id: hmr
+  disabled: true
+
+- insert:
+    - id: acp-startup
+      name: '@deepseek-ai/dsh-acp-app'
+
+    - id: storage
+      name: '@deepseek-ai/dsh-storage'
+
+    - id: storage-sqlite
+      name: '@deepseek-ai/dsh-storage-sqlite'
+      inject: [acpStartup]
+      config:
+        path: !!js dshHomePath('sivitacode.db')
+        journalMode: wal
+
+    - id: storage-domain
+      name: '@deepseek-ai/dsh-storage-domain'
+      config:
+        backend: sqlite
+
+    # Existing homes need no password. An empty home fails loud unless the
+    # operator supplies the same bootstrap secret used by Web.
+    - id: access-control
+      name: '@deepseek-ai/dsh-access-control'
+      config:
+        bootstrapUsername: !!js process.env.SIVITACODE_WEB_ADMIN_USERNAME ?? 'admin'
+        bootstrapPassword: !!js process.env.SIVITACODE_WEB_PASSWORD
+        idleTimeoutMinutes: 60
+        absoluteTimeoutHours: 24
+
+    - id: deployment-inventory
+      name: '@deepseek-ai/dsh-deployment-inventory'
+
+    # ACP has no authenticated human request context. Selection is therefore
+    # deployment-authorized by this exact comma-separated allowlist; `*` is an
+    # explicit full-trust opt-in. Unset means no target selection capability.
+    - id: acp
+      name: '@deepseek-ai/dsh-acp'
+      inject: [deploymentInventory]
+      config:
+        executionTargets: !!js (process.env.SIVITACODE_ACP_EXECUTION_TARGETS ?? '').split(',').map(value => value.trim()).filter(Boolean)

@@ -7,6 +7,21 @@ A service can be a core spine service, a swappable capability seam, or a bundle/
 
 ```mermaid
 flowchart LR
+  pkg_access_control["access-control"]
+  svc_accessControl["ctx.accessControl<br/>Persistent identity and authorization"]
+  pkg_web_app["web-app"]
+  pkg_connection["connection"]
+  pkg_deployment_inventory["deployment-inventory"]
+  svc_deploymentInventory["ctx.deploymentInventory<br/>Deployment target inventory"]
+  pkg_agent_loop["agent-loop"]
+  pkg_execution_world["execution-world"]
+  svc_executionWorldRouter["ctx.executionWorldRouter<br/>Durable execution-world routing"]
+  pkg_git_worktree["git-worktree"]
+  svc_gitWorktrees["ctx.gitWorktrees<br/>Target-aware Git worktrees"]
+  pkg_ssh["ssh"]
+  svc_ssh["ctx.ssh<br/>Pinned SSH connection owner"]
+  pkg_fs_ssh["fs-ssh"]
+  pkg_subprocess_ssh["subprocess-ssh"]
   pkg_attachment["attachment"]
   svc_attachments["ctx.attachments<br/>Durable binary attachment storage"]
   pkg_attachment_local["attachment-local"]
@@ -16,7 +31,6 @@ flowchart LR
   svc_llm["ctx.llm<br/>LLM adapter registry"]
   pkg_llm_deepseek["llm-deepseek"]
   pkg_llm_replay["llm-replay"]
-  pkg_agent_loop["agent-loop"]
   pkg_compaction_basic["compaction-basic"]
   pkg_token_meter["token-meter"]
   svc_tokenMeter["ctx.tokenMeter<br/>Replay token measurement"]
@@ -177,7 +191,6 @@ flowchart LR
   pkg_directory_picker_browse["directory-picker-browse"]
   pkg_webserver["webserver"]
   svc_webServer["ctx.webServer<br/>HTTP route registration"]
-  pkg_connection["connection"]
   pkg_modules["modules"]
   pkg_hmr["hmr"]
   svc_clientModules["ctx.clientModules<br/>Client plugin graph host"]
@@ -193,6 +206,7 @@ flowchart LR
   pkg_cordis_host_runner["cordis-host-runner"]
   svc_dynamicCordisRunner["ctx.dynamicCordisRunner<br/>Dynamic Cordis package host runner"]
   svc_cordisInspect["ctx.cordisInspect<br/>Dynamic Cordis inspect registry"]
+  pkg_access_control --> svc_accessControl
   pkg_acp --> svc_approval
   pkg_agent --> svc_agents
   pkg_agent_default_model --> svc_agentDefaultModel
@@ -215,14 +229,18 @@ flowchart LR
   pkg_cordis_host_runner --> svc_dynamicCordisRunner
   pkg_credentials --> svc_credentials
   pkg_credentials_local --> svc_credentials
+  pkg_deployment_inventory --> svc_deploymentInventory
+  pkg_deployment_inventory --> svc_executionWorldRouter
   pkg_directory_picker --> svc_directoryPicker
   pkg_directory_picker_browse --> svc_directoryPicker
   pkg_directory_picker_native --> svc_directoryPicker
   pkg_e2b --> svc_e2b
+  pkg_execution_world --> svc_executionWorldRouter
   pkg_fs --> svc_fs
   pkg_fs_e2b --> svc_fs
   pkg_fs_local --> svc_fs
   pkg_fs_sandbox --> svc_fs
+  pkg_git_worktree --> svc_gitWorktrees
   pkg_goal --> svc_goals
   pkg_invariants --> svc_invariants
   pkg_jobs --> svc_jobs
@@ -264,6 +282,7 @@ flowchart LR
   pkg_skill_filesystem --> svc_skills
   pkg_spill --> svc_spillStore
   pkg_spill_local --> svc_spillStore
+  pkg_ssh --> svc_ssh
   pkg_storage --> svc_storage
   pkg_storage_domain --> svc_storageDomain
   pkg_storage_json --> svc_storage
@@ -294,6 +313,8 @@ flowchart LR
   pkg_workflow --> svc_workflowEngine
   pkg_workflow_worker_thread --> svc_workflowEngine
   pkg_workspace --> svc_workspaceRegistry
+  svc_accessControl --> pkg_connection
+  svc_accessControl --> pkg_web_app
   svc_agentDefaultModel --> pkg_headless
   svc_agentDefaultModel --> pkg_host_apiproxy
   svc_agentLoop --> pkg_agent_spine_demo
@@ -312,11 +333,14 @@ flowchart LR
   svc_credentials --> pkg_apiproxy
   svc_credentials --> pkg_llm_deepseek
   svc_credentials --> pkg_llm_pi_ai
+  svc_deploymentInventory --> pkg_agent_loop
   svc_directoryPicker --> pkg_apiproxy
   svc_dynamicCordisRunner --> pkg_tool_cordis
   svc_e2b --> pkg_fs_e2b
   svc_e2b --> pkg_subprocess_e2b
+  svc_executionWorldRouter --> pkg_agent_loop
   svc_fs --> pkg_tool_fs
+  svc_gitWorktrees --> pkg_web_app
   svc_invariants --> pkg_agent
   svc_invariants --> pkg_agent_loop
   svc_invariants --> pkg_scope
@@ -365,6 +389,8 @@ flowchart LR
   svc_shellEnv --> pkg_tool_pwsh
   svc_skills --> pkg_tool_skill
   svc_spillStore --> pkg_spill_policy
+  svc_ssh --> pkg_fs_ssh
+  svc_ssh --> pkg_subprocess_ssh
   svc_storage --> pkg_storage_domain
   svc_storageDomain --> pkg_message_feedback
   svc_storageDomain --> pkg_workspace
@@ -411,6 +437,11 @@ flowchart LR
 
 | ctx key | Role | Owner | Implementations | Direct consumers | Companion plugins | Note |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.accessControl` | `core` | [`access-control`](../packages/identity/access-control) | - | [`web-app`](../packages/bundle/web-app), `connection` | - | Owns local accounts, server-side sessions, request-local actors, deployment roles, and security audit records. |
+| `ctx.deploymentInventory` | `core` | [`deployment-inventory`](../packages/deployment/inventory) | - | [`agent-loop`](../packages/core/agent-loop) | - | Owns persistent non-secret local and SSH target records, optimistic revisions, access-control authorization, mutation audit, and the route provider used before Agent construction. |
+| `ctx.executionWorldRouter` | `seam` | [`execution-world`](../packages/util/execution-world) | [`deployment-inventory`](../packages/deployment/inventory) | [`agent-loop`](../packages/core/agent-loop) | - | Resolves a session target into isolated capability realms and a pre-publication setup; the Inventory provider mounts one coherent local or pinned-SSH world. |
+| `ctx.gitWorktrees` | `core` | [`git-worktree`](../packages/git/worktree) | - | [`web-app`](../packages/bundle/web-app) | - | Lists, creates, and safely removes managed linked worktrees through the active subprocess execution world. |
+| `ctx.ssh` | `core` | [`ssh`](../packages/ssh/ssh) | - | [`fs-ssh`](../packages/ssh/fs-ssh), [`subprocess-ssh`](../packages/ssh/subprocess-ssh) | - | Owns exact host-key verification and one multiplexed OpenSSH connection whose execution-world identity is shared by remote filesystem, subprocess, and terminal providers. |
 | `ctx.attachments` | `seam` | [`attachment`](../packages/attachment/attachment) | [`attachment-local`](../packages/attachment/attachment-local) | `host-runtime`, [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | The host commits accepted images before session events; provider adapters resolve authorized durable references into provider-native content. |
 | `ctx.llm` | `seam` | [`llm`](../packages/llm/llm) | [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai), [`llm-replay`](../packages/test-support/llm-replay) | [`agent-loop`](../packages/core/agent-loop), [`compaction-basic`](../packages/compaction/compaction-basic) | - | Adapters register provider implementations; the loop and compaction call the provider-neutral stream service. |
 | `ctx.tokenMeter` | `core` | [`token-meter`](../packages/llm/token-meter) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | Owns isolated per-session replay folds; pressure consumers share immutable revisioned measurements. |

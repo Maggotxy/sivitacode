@@ -277,6 +277,29 @@ describe('registration', () => {
     expect(ctx.tools.get('grep')?.timeoutMs).toBe(30_000)
   })
 
+  it('spawns through the selected execution-target Agent subprocess provider', async () => {
+    const { ctx, subprocess } = await setup()
+    const targetContext = ctx.isolate('subprocess', Symbol('search-target'))
+    const targetFiber = await targetContext.plugin(FakeSubprocess)
+    const targetSubprocess = targetContext.subprocess as FakeSubprocess
+    targetSubprocess.handler = () => runResult('target.ts\n')
+    try {
+      const result = await call(ctx, 'glob', { pattern: '*.ts' }, {
+        agent: {
+          ctx: targetContext,
+          session: { header: { id: 'target-session', cwd: '/srv/project', executionTarget: 'target-a' } },
+        },
+      })
+      expect(result.isError).toBe(false)
+      expect(text(result)).toBe('target.ts')
+      expect(subprocess.spawns).toHaveLength(0)
+      expect(targetSubprocess.spawns).toHaveLength(1)
+      expect(targetSubprocess.spawns[0]?.argv[0]).toBe('rg')
+    } finally {
+      await targetFiber.dispose()
+    }
+  })
+
   it('describes the modification-time head when over-cap sampling is disabled', async () => {
     const { ctx } = await setup({ config: { sampleOverCapGlobResults: false } })
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())

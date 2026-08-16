@@ -14,6 +14,8 @@ await ctx.plugin(ToolFs)                                  // this package — re
 
 `@deepseek-ai/dsh-fs-observation-policy` 是**可选的**：省略时，工具直接使用裸提供方（无条件写入/覆盖/编辑，无已观察状态）。加载这些工具的部署也应加载该插件，从而提供写入/编辑前读取行为。
 
+对于携带持久 `executionTarget` 的会话，每次调用都会从该 Agent 的确切作用域选择文件系统；没有目标的会话和无 Agent 调用使用插件的 `ctx.fs`。观察事件仍位于共享工具 context，因此写前读取状态会跟随调用方工具执行，而文件 I/O 留在所选本机、SSH 或 OCI 世界中。路由文件系统未公开沙箱策略时会拒绝目标专用升权字段，不会把控制平面的策略套用到另一台机器。
+
 `read_image` 只在持久 `ctx.attachments` 服务已挂载时注册：没有它，部署无法持久提交图像字节，工具就不会出现。执行时还要求确切路由的模型声明 `image` 输入（通过 `ctx.llm.resolveModelInfo` 从会话最新请求 header 解析，缺失时回退到 agent 选项）；未知或纯文本路由在任何文件系统 I/O 之前就得到拒绝结果，因此文本路由的持久历史不会出现图像块。
 
 ## 配置

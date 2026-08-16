@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 The `dsh` command is the product launcher for profiles: ordered stacks of plugin-bundle patch layers under the user's own overrides. [`src/args.ts`](src/args.ts) owns the command grammar, and [`src/bin.ts`](src/bin.ts) loads only the selected runner. Invalid commands, options from another mode, configuration errors, and boot failures exit nonzero.
 
+The same package publishes a dedicated `sivitacode` entry. It selects SivitaCode identity before loading the shared dispatcher, maps `SIVITACODE_HOME` or `~/.sivitacode` into the core home resolver, and adds `sivitacode run` and `sivitacode acp` product aliases. The `dsh` entry retains its original command grammar and `DSH_HOME` or `~/.dsh`; the entries do not share user data implicitly. The [product-entry decision](../../.agents/notes/implemented/feature/2026-08-13-sivitacode-product-entry.md) owns the provenance and compatibility rationale.
+
 ## Entry modes
 
 | Command | Purpose |
@@ -12,8 +14,11 @@ The `dsh` command is the product launcher for profiles: ordered stacks of plugin
 | `dsh --profile headless "job"` | Run one fresh persisted session, print the final answer, and exit. |
 | `dsh web` | Alias of `--profile web`. |
 | `dsh plugin --profile <name> <pnpm args>` | Manage a profile's plugins by forwarding to pnpm in the profile directory. |
+| `sivitacode web` | Boot the Web profile with the SivitaCode identity and home. |
+| `sivitacode run "job"` | Run one headless task with the SivitaCode identity and home. |
+| `sivitacode acp` | Serve headless ACP JSON-RPC over stdio with deployment-allowlisted Inventory targets. |
 
-The invoking directory is the default workspace root. The `web` and `headless` profiles auto-initialize on first use from shipped templates; any other profile must be created through `dsh plugin`.
+The invoking directory is the default workspace root. The `web`, `headless`, and `acp` profiles auto-initialize on first use from shipped templates; any other profile must be created through `dsh plugin`.
 
 ## App arguments
 
@@ -36,7 +41,7 @@ The tree composes over an empty root:
 - then the profile's `cordis.patch.yml`, then the home-level `$DSH_HOME/cordis.patch.yml`
 - then `--patch` overlays
 
-Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`), then from the profile's own `node_modules`, where pnpm installs out-of-tree plugins.
+Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`, `@deepseek-ai/dsh-acp-app`), then from the profile's own `node_modules`, where pnpm installs out-of-tree plugins.
 
 Use `--dump-default-config` and `--dump-config` to inspect the composed tree without booting it.
 

@@ -21,7 +21,16 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../session-query/session-query"
+    },
+    {
       "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../util/execution-world"
     },
     {
       "path": "../../interaction/user-approval"

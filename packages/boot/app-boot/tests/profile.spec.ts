@@ -152,6 +152,13 @@ describe('loadProfile', () => {
     // cannot be asserted to fail here: the source-plane test runner resolves
     // @deepseek-ai/* through tsconfig paths regardless of the staged anchor.
     expect(PROFILE_TEMPLATES.web).toContain('@deepseek-ai/dsh-base')
+    expect(PROFILE_TEMPLATES.acp).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'])
+    expect(PROFILE_TEMPLATES['web-ssh']).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-ssh-remote', '@deepseek-ai/dsh-web-app',
+    ])
+    expect(PROFILE_TEMPLATES['headless-ssh']).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-ssh-remote', '@deepseek-ai/dsh-headless',
+    ])
     try {
       loadProfile('t', 'web', anchor, home)
     } catch {

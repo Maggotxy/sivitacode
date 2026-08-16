@@ -41,6 +41,12 @@ export interface WebUpgradeRoute {
   handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>
 }
 
+/** Pre-routing HTTP guard; false means the guard completed the response. */
+export type WebRequestGuard = (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>
+
+/** Pre-routing upgrade guard; false means the guard closed or answered the socket. */
+export type WebUpgradeGuard = (req: IncomingMessage, socket: Duplex) => boolean | Promise<boolean>
+
 /** Gateway config: the listen address. */
 export interface Config {
   /** Listen host; the two supported values are loopback and all-interfaces. */
@@ -65,6 +71,8 @@ export class WebServer extends Service {
   private readonly exact = new Map<string, WebRoute>()
   private readonly prefixes = new Map<string, WebRoute>()
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
+  private readonly requestGuards: WebRequestGuard[] = []
+  private readonly upgradeGuards: WebUpgradeGuard[] = []
   private readonly upgradedSockets = new Set<Duplex>()
   private readonly indexTaps: ((html: string) => string)[] = []
   private fallback: WebRoute['handler'] | undefined
@@ -115,6 +123,36 @@ export class WebServer extends Service {
   }
 
   /**
+   * Register an HTTP guard that runs before route matching and fallback dispatch.
+   * Guards run in registration order; a false result stops dispatch after the
+   * guard has completed the response.
+   * @param guard - request policy that either permits dispatch or owns rejection.
+   * @returns the disposer removing the guard.
+   */
+  guardRequests(guard: WebRequestGuard): () => void {
+    this.requestGuards.push(guard)
+    return () => {
+      const at = this.requestGuards.indexOf(guard)
+      if (at !== -1) this.requestGuards.splice(at, 1)
+    }
+  }
+
+  /**
+   * Register an upgrade guard that runs before upgrade-route lookup. Guards run
+   * in registration order; a false result stops dispatch after the guard has
+   * answered or destroyed the socket.
+   * @param guard - upgrade policy that either permits dispatch or owns rejection.
+   * @returns the disposer removing the guard.
+   */
+  guardUpgrades(guard: WebUpgradeGuard): () => void {
+    this.upgradeGuards.push(guard)
+    return () => {
+      const at = this.upgradeGuards.indexOf(guard)
+      if (at !== -1) this.upgradeGuards.splice(at, 1)
+    }
+  }
+
+  /**
    * Claim the fallback seat: the handler answering every request no named
    * route matches (the SPA dist server in the shipped Web composition). One
    * owner only — a second registration throws, because two fallbacks cannot
@@ -147,6 +185,9 @@ export class WebServer extends Service {
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      for (const guard of this.requestGuards) {
+        if (!await guard(req, res)) return
+      }
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
@@ -188,22 +229,21 @@ export class WebServer extends Service {
         socket.off('error', onError)
         this.upgradedSockets.delete(socket)
       })
-      let route: WebUpgradeRoute | undefined
-      try {
+      const dispatchUpgrade = async (): Promise<void> => {
+        for (const guard of this.upgradeGuards) {
+          if (!await guard(req, socket)) return
+        }
         /* v8 ignore next -- node:http always sets url on server requests. */
-        route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
-      } catch (error) {
-        this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
-        socket.destroy()
-        return
+        const route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
+        if (route === undefined) {
+          socket.destroy()
+          return
+        }
+        this.upgradedSockets.add(socket)
+        await route.handler(req, socket, head)
       }
-      if (route === undefined) {
-        socket.destroy()
-        return
-      }
-      this.upgradedSockets.add(socket)
       try {
-        Promise.resolve(route.handler(req, socket, head)).catch((error: unknown) => {
+        void dispatchUpgrade().catch((error: unknown) => {
           this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
           socket.destroy()
         })

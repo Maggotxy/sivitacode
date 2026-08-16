@@ -37,6 +37,20 @@ describe('SystemPrompt', () => {
       expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(IDENTITY)
     })
 
+    it('uses SivitaCode identity for sessions launched through the product entry', async () => {
+      const previous = process.env.SIVITACODE_PRODUCT
+      process.env.SIVITACODE_PRODUCT = '1'
+      try {
+        const ctx = new Context()
+        await ctx.plugin(SystemPrompt)
+        expect(renderPrompt(await ctx.systemPrompt.assemble()))
+          .toBe('You are an AI agent powered by SivitaCode.')
+      } finally {
+        if (previous === undefined) delete process.env.SIVITACODE_PRODUCT
+        else process.env.SIVITACODE_PRODUCT = previous
+      }
+    })
+
     it('can omit the harness identity for a deployment that owns the complete persona', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt, {

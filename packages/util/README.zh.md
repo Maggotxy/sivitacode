@@ -7,6 +7,7 @@
 | 包 | 职责 |
 |---|---|
 | [`brand/`](brand/README.md) | 提供带名义品牌的类型 |
+| [`execution-world/`](execution-world/README.md) | 提供不透明的执行环境身份 |
 | [`paths/`](home-paths/README.md) | 解析 Harness 数据根目录和共享路径 |
 | [`timeout/`](timeout/README.md) | 提供截止时间和超时分类原语 |
 | [`retention/`](output-retention/README.md) | 限制保留文本和项集合的大小 |

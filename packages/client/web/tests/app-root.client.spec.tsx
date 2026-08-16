@@ -33,7 +33,7 @@ function mount() {
 describe('AppRoot', () => {
   it('shows the loading page and never calls renderApp before settled', () => {
     const { queryByTestId, counts, getByText } = mount()
-    expect(getByText('HARNESS')).toBeTruthy()
+    expect(getByText('SivitaCode')).toBeTruthy()
     expect(queryByTestId('real-ui')).toBeNull()
     expect(counts()).toBe(0)
   })
@@ -70,7 +70,7 @@ describe('AppRoot', () => {
     const { settled, getByTestId, queryByText, counts } = mount()
     act(() => { settled.set(true) })
     expect(getByTestId('real-ui')).toBeTruthy()
-    expect(queryByText('HARNESS')).toBeNull()
+    expect(queryByText('SivitaCode')).toBeNull()
     expect(counts()).toBe(1)
   })
 })

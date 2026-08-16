@@ -330,7 +330,17 @@ export function apply(ctx: Context, config: Config = {}): void {
     async execute(args: BashToolArgs, exec) {
       validateBashArgs(args)
       // Description is display metadata; workdir defaults to the caller's session.
-      const standingPolicy = resolveSandboxPolicy(exec)
+      const targeted = exec.agent?.session.header.executionTarget !== undefined
+      const shell = !targeted
+        ? ctx.shell
+        : exec.agent.ctx.get('shell')
+      if (shell === undefined) throw new Error('execution target has no routed shell provider')
+      const standingPolicy = shell.sandboxMode === undefined ? undefined : resolveSandboxPolicy(exec)
+      if (shell.sandboxMode === undefined && args.sandbox_permissions !== undefined) {
+        throw new Error(targeted
+          ? 'sandbox_permissions is not available for this execution target (its shell does not expose a sandbox policy)'
+          : 'sandbox_permissions is not available in this composition (no sandboxing executor to escalate)')
+      }
       const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
         ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
         : undefined
@@ -367,7 +377,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           label: args.command,
           ...exec.agent ? { owner: exec.agent } : {},
           run: () => {
-            const proc = ctx.shell.start(ctx.shell.resolve(request))
+            const proc = shell.start(shell.resolve(request))
             return {
               cancel: () => void proc.kill(),
               done: proc.done.then(() => processOutcome(proc)),
@@ -377,7 +387,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         })
         return { kind: 'background' as const, jobId: id }
       }
-      const result = await ctx.shell.run(ctx.shell.resolve({
+      const result = await shell.run(shell.resolve({
         ...request,
         signal: exec.signal,
       }))

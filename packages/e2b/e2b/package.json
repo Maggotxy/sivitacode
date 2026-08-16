@@ -36,6 +36,7 @@
     "@deepseek-ai/cordis": "workspace:^"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-execution-world": "workspace:^",
     "e2b": "2.29.1",
     "@deepseek-ai/schemastery": "workspace:^"
   },

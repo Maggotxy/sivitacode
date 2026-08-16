@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-attachment'
 // Activates the webServer Context merge used below.
 import type { WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { toFetchHandler } from '@deepseek-ai/dsh-host-apiproxy'
+import type { AccessPermission } from '@deepseek-ai/dsh-access-control'
 import { API_PATH, HOST_EVENTS_PATH, MUX_EVENTS_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority, isTrustedApiRequest } from './api-request-trust.ts'
@@ -74,9 +75,11 @@ export const Config: z<ConnectionConfig> = z.object({
  * configuration and `credentials.describe` reports whether an arbitrary
  * environment-variable name is configured and where from, which is
  * reconnaissance no anonymous caller should have. `trustedHosts` is a
- * DNS-rebinding fence, explicitly not authentication, so the whole
- * configuration plane stays loopback-same-origin until a real authentication
- * layer exists. `llm.discoverModels` belongs to that plane on both counts: it
+ * DNS-rebinding fence, explicitly not authentication, so unauthenticated
+ * access to the whole configuration plane stays loopback-same-origin.
+ * Authenticated requests reach these methods only after the outer route binds
+ * an actor and enforces RBAC. `llm.discoverModels` belongs to that plane on
+ * both counts: it
  * carries a draft credential, and it makes the HOST issue a GET to a URL the
  * caller chose and reports back the status or the parsed body — an anonymous
  * LAN caller would have a probe for whatever the host can reach and the
@@ -118,6 +121,22 @@ const PRIVILEGED_METHODS = new Set([
   'llm.discoverModels',
 ])
 
+const CONFIGURE_METHODS = new Set([
+  'agentPreset.copy', 'agentPreset.remove', 'settings.update', 'settings.replace',
+  'settings.mutate', 'credentials.set', 'credentials.unset', 'llm.discoverModels',
+])
+
+const READ_METHOD_SUFFIXES = new Set([
+  'list', 'search', 'history', 'models', 'describe', 'read', 'providers', 'attachment',
+])
+
+function permissionFor(method: string | undefined, requestMethod: string): AccessPermission {
+  if (method === undefined || requestMethod === 'GET' || requestMethod === 'HEAD') return 'read'
+  if (CONFIGURE_METHODS.has(method)) return 'configure'
+  const suffix = method.slice(method.lastIndexOf('.') + 1)
+  return READ_METHOD_SUFFIXES.has(suffix) ? 'read' : 'operate'
+}
+
 /**
  * Mounts the API gateway under the browser transport prefix. Every request on
  * the prefix passes the browser-trust fence first (DNS-rebinding and
@@ -144,6 +163,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         : undefined
       if (method !== undefined
         && PRIVILEGED_METHODS.has(method)
+        && ctx.get('accessControl')?.currentActor() === undefined
         && !isTrustedApiRequest(request, [])) {
         return new Response('forbidden', { status: 403 })
       }
@@ -167,7 +187,30 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         res.end('forbidden')
         return
       }
-      await bridge(req, res, fetchHandler, maxRequestBodyBytes)
+      const access = ctx.get('accessControl')
+      const actor = access?.actorForRequest(req)
+      if (access !== undefined && actor === undefined) {
+        res.writeHead(401)
+        res.end('authentication required')
+        return
+      }
+      const pathname = new URL(req.url ?? '/', 'http://x').pathname
+      const method = pathname.startsWith(`${API_PATH}/`) ? pathname.slice(API_PATH.length + 1) : undefined
+      if (access === undefined || actor === undefined) {
+        await bridge(req, res, fetchHandler, maxRequestBodyBytes)
+        return
+      }
+      try {
+        await access.runAs(actor, async () => {
+          await access.authorize(permissionFor(method, req.method ?? 'GET'), method)
+          await bridge(req, res, fetchHandler, maxRequestBodyBytes)
+        })
+      } catch {
+        if (!res.headersSent) {
+          res.writeHead(403)
+          res.end('forbidden')
+        }
+      }
     },
   }
   ctx.effect(() => ctx.webServer.register(route), 'client-connection: /api route')
@@ -180,12 +223,26 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
     ): void => {
       apiCtx.effect(() => apiCtx.webServer.registerUpgrade({
         path,
-        handler: (req, socket, head) => {
+        handler: async (req, socket, head) => {
           if (!isTrustedApiRequest(req, trustedHosts)) {
             rejectWebSocketUpgrade(socket)
             return
           }
-          return handle(req, socket, head)
+          const access = apiCtx.get('accessControl')
+          const actor = access?.actorForRequest(req)
+          if (access !== undefined && actor === undefined) {
+            rejectWebSocketUpgrade(socket)
+            return
+          }
+          if (access === undefined || actor === undefined) return handle(req, socket, head)
+          try {
+            await access.runAs(actor, async () => {
+              await access.authorize('read', path)
+              await handle(req, socket, head)
+            })
+          } catch {
+            rejectWebSocketUpgrade(socket)
+          }
         },
       }), `client-connection: ${path} WebSocket`)
     }

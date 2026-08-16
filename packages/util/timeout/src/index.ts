@@ -12,12 +12,19 @@
 export class TimeoutReason extends Error {
   override name = 'TimeoutReason'
 
+  /** Capability-owned timeout code. */
+  readonly code: string
+  /** Elapsed deadline in milliseconds. */
+  readonly timeoutMs: number
+
   /**
    * @param code Capability-owned timeout code (e.g. `BASH_TIMEOUT`).
    * @param timeoutMs The deadline that elapsed, in milliseconds.
    */
-  constructor(readonly code: string, readonly timeoutMs: number) {
+  constructor(code: string, timeoutMs: number) {
     super(`${code} after ${timeoutMs}ms`)
+    this.code = code
+    this.timeoutMs = timeoutMs
   }
 }
 

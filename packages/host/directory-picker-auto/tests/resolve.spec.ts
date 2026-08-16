@@ -9,6 +9,7 @@ import type { DirectoryPickerHostFacts } from '../src/resolve.ts'
 /** Baseline facts that resolve to `native`; each case overrides one signal (darwin never consults `linuxChooser`). */
 const attended: DirectoryPickerHostFacts = {
   bindHost: '127.0.0.1',
+  remoteBrowserAccess: false,
   platform: 'darwin',
   env: {},
   linuxChooser: false,
@@ -22,6 +23,10 @@ describe('resolveDirectoryPickerBackend', () => {
 
   it('resolves browse for an all-interfaces bind regardless of other signals', () => {
     expect(resolveDirectoryPickerBackend({ ...attended, bindHost: '0.0.0.0' })).toBe('browse')
+  })
+
+  it('resolves browse when a proxy or tunnel exposes a loopback-bound host remotely', () => {
+    expect(resolveDirectoryPickerBackend({ ...attended, remoteBrowserAccess: true })).toBe('browse')
   })
 
   it('resolves browse under an SSH launch (either env marker)', () => {

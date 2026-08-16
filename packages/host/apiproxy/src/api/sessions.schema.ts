@@ -17,6 +17,7 @@ import type {
 import type { ToolEventView } from './events.ts'
 import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { WorkspaceId } from './workspace.ts'
+import type { ExecutionTargetId } from '@deepseek-ai/dsh-execution-world'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
   SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS,
@@ -36,6 +37,8 @@ export const messageIdSchema = z.string().min(1) as unknown as z.ZodType<Message
  * DAG (both casts used at module top level; a cycle is a load-time TDZ).
  */
 export const workspaceIdSchema = z.string().min(1) as unknown as z.ZodType<WorkspaceId>
+/** Execution target id validated at the wire boundary. */
+export const executionTargetIdSchema = z.string().min(1) as unknown as z.ZodType<ExecutionTargetId>
 
 /** SessionEvent passthrough: strict envelope, wide data (the client fold handles unknown types via its documented default). */
 export const sessionEventSchema = z.object({
@@ -58,6 +61,7 @@ export const sessionSummarySchema = z.object({
   origin: z.literal('subagent').optional(),
   cwd: z.string().optional(),
   agentPreset: z.string().optional(),
+  executionTarget: executionTargetIdSchema.optional(),
   projections: z.lazy(() => sessionProjectionsBlockSchema).optional(),
 }) as unknown as z.ZodType<Wire<SessionSummary>>
 
@@ -104,6 +108,7 @@ export const sessionCreateRequestSchema = z.object({
   cwd: z.string().optional(),
   sessionId: sessionIdSchema.optional(),
   agentPreset: z.string().optional(),
+  executionTarget: executionTargetIdSchema.optional(),
 }).refine(
   payload => payload.workspaceId === undefined || payload.cwd === undefined,
   { message: 'session.create accepts workspaceId or cwd, not both' },

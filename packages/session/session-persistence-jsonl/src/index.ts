@@ -120,6 +120,7 @@ function isENOENT(error: unknown): boolean {
  */
 export class JsonlSessionPersistence extends SessionPersistence implements PersistenceBackend<JsonlTornMarker> {
   override readonly supportsRawArtifacts = true
+  override readonly supportsDeletion = true
 
   static inject = ['sessions']
 
@@ -179,6 +180,10 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
 
   append(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
     return this.coordinator.append(id, events)
+  }
+
+  override delete(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    return this.coordinator.delete(id, signal)
   }
 
   override prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation> {
@@ -441,6 +446,23 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     if (tornMarker !== undefined) await this.repair(meta, tornMarker.truncateTo)
     const repairedEvents = [...(tornMarker?.recoveredEvents ?? []), ...closers]
     if (repairedEvents.length > 0) await this.appendLines(meta, repairedEvents)
+  }
+
+  /** Remove one identity-verified session directory and durably publish its absence on POSIX. */
+  async deleteStored(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted()
+    await this.ensureRootEncoding()
+    const path = await this.findLog(id, signal)
+    if (path === undefined) return false
+    // Read and validate the header before deleting its narrowly resolved owner directory.
+    await this.readPrefix(path, id, signal)
+    signal?.throwIfAborted()
+    const dir = dirname(path)
+    const project = dirname(dir)
+    await rm(dir, { recursive: true })
+    /* v8 ignore next 3 -- Windows namespace deletion has its own durability semantics. */
+    if (process.platform !== 'win32') await this.syncDirPosix(project)
+    return true
   }
 
   /** List valid unique stored sessions' metadata (header line only — no full-log parse). */

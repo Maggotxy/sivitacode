@@ -163,6 +163,9 @@
     - id: subprocess
       name: '@deepseek-ai/dsh-subprocess-local'
 
+    - id: git-worktrees
+      name: '@deepseek-ai/dsh-git-worktree'
+
     # Every shipped CLI mode starts with the same file-effect boundary.
     # The environment remains an explicit deployment override; otherwise fresh
     # sessions pin workspace-write + ask through the permission service below.
@@ -442,6 +445,13 @@
     # overlay can pin another workspace.
     - id: fs-sandbox
       name: '@deepseek-ai/dsh-fs-sandbox'
+
+    # File tools and every process-backed capability must inhabit one world.
+    - id: execution-world-coherence
+      name: '@deepseek-ai/dsh-execution-world-coherence'
+
+    - id: execution-world-router
+      name: '@deepseek-ai/dsh-execution-world'
 
     # The native DeepSeek adapter. No key or endpoint is inlined: both resolve per
     # request from the `llm-deepseek:` settings section over this entry, with the

@@ -269,7 +269,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       },
     )
     try {
-      await generation.connect(createTransport(config))
+      await generation.connect(createTransport(ctx, config))
       if (hasClosed()) {
         attemptSettled = true
         generationDown(generation)

@@ -106,6 +106,24 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'scripts/gen-doc-graphs.ts', upstream: ['cordis'] },
 ]
 
+/** Trees where bare `cordis` strings are protocol, event, or locale identifiers rather than npm specifiers. */
+const CORDIS_PROTOCOL_TREES = [
+  'packages/extensions/cordis-client-runner/',
+  'packages/extensions/cordis-host-runner/',
+  'packages/extensions/tool-cordis/',
+  'packages/extensions/ui-cordis/',
+] as const
+
+/** Generated or consuming files whose bare `cordis` strings name those same protocol identifiers. */
+const CORDIS_PROTOCOL_FILES = new Set([
+  'docs/event-producer-consumer.md',
+  'docs/event-producer-consumer.zh.md',
+  'docs/subsystems/extensions.md',
+  'docs/subsystems/extensions.zh.md',
+  'packages/api/remotes/src/remote-events.ts',
+  'packages/client/ui-settings-plugin-inventory/src/client/PluginInventorySettingsTab.tsx',
+])
+
 /** A string that must appear exactly `count` times once the rescope has run. */
 interface PostCondition {
   readonly file: string
@@ -462,7 +480,7 @@ const VENDORED_LIBRARY = /^@deepseek-ai\\/(cosmokit|schemastery)(\\/|$)/
 
 /** Files the rescope must never rewrite. */
 function excluded(file: string): boolean {
-  if (file === 'scripts/rescope-vendor.ts') return true // the mapping itself
+  if (file === 'scripts/rescope-vendor.ts' || file === 'scripts/rescope-vendor.spec.ts') return true // mapping and its fixtures
   if (file.startsWith('.agents/notes/')) return true // notes record what was true when written
   // Recorded model payloads quote documentation verbatim, so they must mirror the
   // sources on disk — including the notes this rescope leaves alone.
@@ -503,8 +521,15 @@ function patterns(reverse: boolean): Pattern[] {
     }))
 }
 
+/** Whether a generic package-token rewrite is disabled because the same spelling is product data in this file. */
+export function genericRewriteSkipped(file: string, upstream: string): boolean {
+  if (upstream === 'cordis'
+    && (CORDIS_PROTOCOL_FILES.has(file) || CORDIS_PROTOCOL_TREES.some(prefix => file.startsWith(prefix)))) return true
+  return GENERIC_SKIPS.some(skip => skip.file === file && skip.upstream.includes(upstream))
+}
+
 function skipped(file: string, pattern: Pattern): boolean {
-  return GENERIC_SKIPS.some(skip => skip.file === file && skip.upstream.includes(pattern.upstream))
+  return genericRewriteSkipped(file, pattern.upstream)
 }
 
 function rewriteLine(line: string, file: string, all: readonly Pattern[]): string {

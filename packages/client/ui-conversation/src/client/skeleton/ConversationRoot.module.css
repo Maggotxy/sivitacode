@@ -166,9 +166,7 @@
   background: transparent;
 }
 
-/* Selected tab is blue, not ink: brand-primary resolves to neutral black in
-   this token sheet, so the selected state rides the business blue — the
-   nearest semantic token that stays blue in both themes. */
+/* Selected tabs use the product activity color in both themes. */
 .tabActive {
   color: var(--dsw-alias-state-business-primary);
 }
@@ -324,7 +322,7 @@
   z-index: 1;
 }
 
-/* Blue backdrop ellipse (figma 313:14109), centered on the input card: the
+/* Sivita pulse backdrop, centered on the input card: the
    card's resting center sits ~92px above the stack bottom (32 foot pad +
    half of the ~120px two-row card); width tracks the card (glow asset 1051
    vs design card 776) so blur scales in userSpace with it. z-index -1 keeps

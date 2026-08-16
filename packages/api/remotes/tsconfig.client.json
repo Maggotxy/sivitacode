@@ -21,6 +21,9 @@
       "path": "../../client/connection/tsconfig.client.json"
     },
     {
+      "path": "../../identity/access-control"
+    },
+    {
       "path": "../../credentials/credentials"
 
     },

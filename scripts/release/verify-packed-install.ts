@@ -107,12 +107,14 @@ function main(): void {
     capture('npm', ['install', '--no-audit', '--no-fund', '--package-lock=false', '--omit=optional'],
       { cwd: consumerRoot, env: environment })
 
-    const bin = join(consumerRoot, 'node_modules', ...entry.packageName.split('/'), entry.binPath)
-    const version = capture(process.execPath, [bin, '--version'], { cwd: consumerRoot, env: environment })
-    if (version !== expected.version) {
-      throw new Error(`installed ${entry.packageName} --version reported ${JSON.stringify(version)}, expected ${expected.version}`)
+    for (const binPath of [entry.binPath, ...(entry.additionalBinPaths ?? [])]) {
+      const bin = join(consumerRoot, 'node_modules', ...entry.packageName.split('/'), binPath)
+      const version = capture(process.execPath, [bin, '--version'], { cwd: consumerRoot, env: environment })
+      if (version !== expected.version) {
+        throw new Error(`installed ${entry.packageName}/${binPath} --version reported ${JSON.stringify(version)}, expected ${expected.version}`)
+      }
+      console.log(`release verify-packed-install: installed ${entry.packageName}/${binPath} reports ${version}`)
     }
-    console.log(`release verify-packed-install: installed ${entry.packageName} reports ${version}`)
   } finally {
     rmSync(consumerRoot, { recursive: true, force: true })
   }

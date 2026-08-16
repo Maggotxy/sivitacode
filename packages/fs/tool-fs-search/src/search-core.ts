@@ -222,10 +222,17 @@ export async function runRipgrep(
   }
   const cwd = exec.agent?.session.header.cwd
   const workdir = cwd ?? process.cwd()
+  const subprocess = exec.agent?.session.header.executionTarget === undefined
+    ? ctx.subprocess
+    : exec.agent.ctx.get('subprocess')
+  if (subprocess === undefined) throw new SearchError(`${toolName} execution target has no routed subprocess provider`, 'SEARCH_FAILED')
   let handle: SubprocessHandle
   try {
-    handle = ctx.subprocess.spawn({
-      argv: [await resolveRgPath(), '--no-config', ...argv],
+    const ripgrep = subprocess.executionWorld === ctx.subprocess.executionWorld
+      ? await resolveRgPath()
+      : await subprocess.resolveExecutable('rg', {}, exec.signal)
+    handle = subprocess.spawn({
+      argv: [ripgrep, '--no-config', ...argv],
       cwd: workdir,
       stdio: {
         stdin: 'ignore',

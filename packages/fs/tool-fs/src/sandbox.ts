@@ -16,6 +16,7 @@ import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandb
 import { ESCALATION_TARGETS, approveEscalation, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { FsError } from '@deepseek-ai/dsh-fs'
+import { executionFileSystem } from './execution-fs.ts'
 
 /** The two escalation arguments a mutating tool may carry (advertised only under a confining backend). */
 export interface FsEscalationArgs {
@@ -86,6 +87,15 @@ export class FsSandboxController {
    */
   async resolvePolicy(toolName: string, args: FsEscalationArgs, exec: ToolExecution): Promise<SandboxExecutionPolicy | undefined> {
     validateEscalationArgs(args.sandbox_permissions, args.justification)
+    const fs = executionFileSystem(this.ctx, exec)
+    if (fs.sandboxMode === undefined) {
+      if (args.sandbox_permissions !== undefined) {
+        throw new Error(exec.agent?.session.header.executionTarget === undefined
+          ? 'sandbox_permissions is not available in this composition (no sandboxing filesystem to escalate)'
+          : 'sandbox_permissions is not available for this execution target (its filesystem does not expose a sandbox policy)')
+      }
+      return undefined
+    }
     const standingPolicy = this.policy?.resolve({ ...exec.agent ? { session: exec.agent.session } : {} })
     if (args.sandbox_permissions === undefined || args.justification === undefined) {
       return standingPolicy

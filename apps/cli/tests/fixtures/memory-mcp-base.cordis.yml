@@ -6,3 +6,6 @@
 
 - id: tools
   name: cordis:memory-test-tools
+
+- id: subprocess
+  name: cordis:memory-test-subprocess

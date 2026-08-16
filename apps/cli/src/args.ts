@@ -109,16 +109,40 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
  * @param version - version string printed by `--version`.
  * @returns the resolved invocation.
  */
-export function parseDshArgs(argv: readonly string[], version: string): DshInvocation {
+export interface CliIdentity {
+  /** Executable name shown in help and diagnostics. */
+  command: string
+  /** Product name shown in the launcher description. */
+  product: string
+  /** Environment variable that owns the product home. */
+  homeEnvironment: string
+  /** Whether the product exposes `run` as the headless-profile alias. */
+  runAlias: boolean
+  /** Whether the product exposes `acp` as the automation-profile alias. */
+  acpAlias?: boolean
+}
+
+/** DeepSeek Harness compatibility identity. */
+export const DSH_CLI_IDENTITY: CliIdentity = {
+  command: 'dsh',
+  product: 'DeepSeek Harness',
+  homeEnvironment: 'DSH_HOME',
+  runAlias: false,
+  acpAlias: false,
+}
+
+export function parseDshArgs(
+  argv: readonly string[], version: string, identity: CliIdentity = DSH_CLI_IDENTITY,
+): DshInvocation {
   let resolved: DshInvocation | undefined
   // Annotated, not inferred: the actions below call back into `program`, and an
   // inferred type would be circular through its own chain.
   const program: Command = new Command()
   program
-    .name('dsh')
+    .name(identity.command)
     .version(version, '-V, --version', 'output the version number')
-    .description('dsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch layers under your own overrides.')
-    .addHelpText('after', HELP_EXAMPLES)
+    .description(`${identity.command}: boot a ${identity.product} profile — an ordered stack of plugin-bundle patch layers under your own overrides.`)
+    .addHelpText('after', HELP_EXAMPLES.replaceAll('dsh', identity.command))
     .exitOverride()
     // The launcher's flags come first and end at the first token it does not
     // know; everything from there on belongs to the booted app, including
@@ -127,8 +151,8 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .allowUnknownOption()
     .passThroughOptions()
     .enablePositionalOptions()
-    .argument('[args...]', 'arguments for the booted profile\'s app (see: dsh --profile <name> --help)')
-    .option('--profile <name>', 'the profile under $DSH_HOME/profiles to boot')
+    .argument('[args...]', `arguments for the booted profile's app (see: ${identity.command} --profile <name> --help)`)
+    .option('--profile <name>', `the profile under $${identity.homeEnvironment}/profiles to boot`)
     .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
     .option('--dump-config', 'print the composed profile tree and exit')
     .option('--dump-default-config', 'print the profile tree without its user layer or --patch overlays and exit')
@@ -159,7 +183,7 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .allowUnknownOption()
     .passThroughOptions()
     .enablePositionalOptions()
-    .argument('[args...]', 'arguments for the web app (see: dsh web --help)')
+    .argument('[args...]', `arguments for the web app (see: ${identity.command} web --help)`)
     .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
     .option('--dump-config', 'print the composed web-profile tree (with the user layer and any --patch) and exit')
     .option('--dump-default-config', 'print the web profile\'s bundle layers (no user layer) and exit')
@@ -167,6 +191,40 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
       rejectParentOptions('web')
       resolved = resolveBoot(web, 'web', options, args)
     })
+
+  if (identity.runAlias) {
+    const run = program.command('run').description('run one headless task and exit (alias of --profile headless)')
+    run
+      .helpOption(false)
+      .allowUnknownOption()
+      .passThroughOptions()
+      .enablePositionalOptions()
+      .argument('[args...]', `arguments for the headless app (see: ${identity.command} run --help)`)
+      .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
+      .option('--dump-config', 'print the composed headless-profile tree and exit')
+      .option('--dump-default-config', 'print the headless profile bundle layers and exit')
+      .action((args: string[], options: BootOptions) => {
+        rejectParentOptions('run')
+        resolved = resolveBoot(run, 'headless', options, args)
+      })
+  }
+
+  if (identity.acpAlias === true) {
+    const acp = program.command('acp').description('serve Agent Client Protocol over stdio (alias of --profile acp)')
+    acp
+      .helpOption(false)
+      .allowUnknownOption()
+      .passThroughOptions()
+      .enablePositionalOptions()
+      .argument('[args...]', `arguments for the ACP app (see: ${identity.command} acp --help)`)
+      .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
+      .option('--dump-config', 'print the composed ACP-profile tree and exit')
+      .option('--dump-default-config', 'print the ACP profile bundle layers and exit')
+      .action((args: string[], options: BootOptions) => {
+        rejectParentOptions('acp')
+        resolved = resolveBoot(acp, 'acp', options, args)
+      })
+  }
 
   const plugin = program.command('plugin').description('manage a profile\'s plugins by forwarding the remaining arguments to pnpm in the profile directory')
   plugin

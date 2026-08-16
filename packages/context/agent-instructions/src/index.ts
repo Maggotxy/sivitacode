@@ -113,7 +113,12 @@ export function apply(ctx: Context, config: Config): void {
     if (resolved.maxBytes <= 0 || !Number.isFinite(resolved.maxBytes)) {
       return undefined
     }
-    const fileSystem = ctx.get('fs')
+    const fileSystem = agent.session.header.executionTarget === undefined
+      ? ctx.get('fs')
+      : agent.ctx.get('fs')
+    if (agent.session.header.executionTarget !== undefined && fileSystem === undefined) {
+      throw new Error('execution target has no routed filesystem provider for workspace instructions')
+    }
     if (fileSystem === undefined) return undefined
     if (touchedPaths.length === 0 && pending.length > 0) return pending[0]
     const content: UserMessage['content'][number][] = []

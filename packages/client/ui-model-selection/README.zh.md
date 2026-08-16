@@ -14,6 +14,8 @@ Host 报告的 `ModelSelection` 是唯一的选择事实，其中包含提供方
 
 `/client` 导出面为插件本体（`apply`/`inject`）、`ModelDirectoryResolver`、`ModelDirectory` 及其状态形状、slot 注入面类型。
 
+composer 触发器填满自身分配到的 flex 单元，并在窄屏下先截断模型标签，避免覆盖固定宽度的发送控件。
+
 ## 模型体验
 
 间接影响。两个入口都通过仅供普通会话使用的 `session.selectModel` RPC 提交完整的 `ModelSelection`；Host 会在下一次提示词组装边界对其进行快照，因此后续请求采用所选提供方、模型与推理强度，而运行中的步骤保留已组装选择。只有当现有请求头记录一次实际采用该选择的请求后，选择才会持久化；菜单交互不会添加提示词内容。

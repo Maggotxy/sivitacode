@@ -52,6 +52,9 @@ function requireRepresentableGrace(graceMs: number): void {
 export class E2BSubprocessRuntime extends SubprocessRuntime {
   static inject = ['e2b']
 
+  /** Identity of the exact E2B owner serving process operations. */
+  override get executionWorld() { return this.ctx.e2b.executionWorld }
+
   static Config: z<Config> = z.object({
     pollMs: z.number().default(20),
   })

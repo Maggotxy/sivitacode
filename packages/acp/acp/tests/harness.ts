@@ -1,6 +1,9 @@
 /** In-memory ACP transport fixture over the real agent factory and loop. */
 
 import { Context } from '@deepseek-ai/cordis'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   ClientSideConnection,
   ndJsonStream,
@@ -14,6 +17,9 @@ import {
 import { type GenerateOptions, LlmAdapter, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
+import ExecutionWorldRouter from '@deepseek-ai/dsh-execution-world'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SessionQuerySqlite from '@deepseek-ai/dsh-session-query-sqlite'
 import * as AcpPlugin from '../src/index.ts'
 import type { AcpConfig } from '../src/index.ts'
 
@@ -21,7 +27,10 @@ import type { AcpConfig } from '../src/index.ts'
 class MockAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
 
-  constructor(private readonly script: (StreamChunk[] | 'hang')[]) {
+  constructor(
+    private readonly script: (StreamChunk[] | 'hang')[],
+    private readonly contextWindow?: number,
+  ) {
     super()
   }
 
@@ -32,6 +41,15 @@ class MockAdapter extends LlmAdapter {
 
   override listModels(provider: string) {
     return Promise.resolve(provider === 'mock' ? [{ provider: 'mock', id: 'mock', name: 'Mock' }] : [])
+  }
+
+  override resolveModel(provider: string, model: string) {
+    return Promise.resolve({
+      provider,
+      id: model,
+      name: model,
+      ...(this.contextWindow === undefined ? {} : { context: { contextWindow: this.contextWindow } }),
+    })
   }
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -113,11 +131,16 @@ export async function makeBridgeHarness(options: {
   script?: (StreamChunk[] | 'hang')[]
   config?: AcpConfigOverrides
   persona?: string
+  contextWindow?: number
 } = {}): Promise<BridgeHarness> {
-  const adapter = new MockAdapter(options.script ?? [])
+  const adapter = new MockAdapter(options.script ?? [], options.contextWindow)
   const ctx = new Context()
+  const sessionsRoot = mkdtempSync(join(tmpdir(), 'dsh-acp-sessions-'))
   await mountAgentLoopTestDependencies(ctx, { systemPrompt: { persona: options.persona ?? '' } })
+  await ctx.plugin(ExecutionWorldRouter)
   const loopFiber = await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(JsonlSessionPersistence, { root: sessionsRoot })
+  await ctx.plugin(SessionQuerySqlite, { path: ':memory:', openAt: 'never' })
   ctx.llm.registerAdapter(['mock'], adapter)
 
   const agentToClient = new TransformStream<Uint8Array, Uint8Array>()
@@ -145,7 +168,13 @@ export async function makeBridgeHarness(options: {
     loopFiber,
     closeClientTransport: async () => { await clientToAgentWriter.close() },
     abortClientTransport: async () => { await clientToAgentWriter.abort(new Error('client transport failed')) },
-    dispose: async () => { await ctx.fiber.dispose() },
+    dispose: async () => {
+      try {
+        await ctx.fiber.dispose()
+      } finally {
+        rmSync(sessionsRoot, { recursive: true, force: true })
+      }
+    },
   }
 
   const makeClient = (_agent: AcpAgent): Client => ({

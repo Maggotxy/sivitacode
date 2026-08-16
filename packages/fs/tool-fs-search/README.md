@@ -14,9 +14,9 @@ await ctx.plugin(LocalSpillStore)                           // @deepseek-ai/dsh-
 
 Why spawn-backed: local workspace discovery is naturally a process-backed `rg` workflow, and putting search on `ctx.fs` would force every filesystem backend to grow a search API. The subprocess seam owns spawn execution, process-tree termination, environment scrubbing, and bounded output capture; this package owns schemas, argument validation, argv construction, parsing, retention, formatted-result spill, and timeout declaration. The tools never expose a background job — the call returns only after `rg` exits, is terminated by the cooperative timeout, is aborted, or fails.
 
-## Deployment requirement: no host rg, co-located workdir/filesystem
+## Deployment requirement: target-local rg and a co-located workspace
 
-The binary ships with the package on every supported platform (macOS/Linux/Windows, x64/arm64), so no host `rg` install is required and the tools register on every deployment. Returned paths are displayed relative to the resolved workdir (the calling agent's session cwd when present, else `process.cwd()`) and are follow-up-readable with `read` only when that workdir and the filesystem root are the same workspace. That co-location requirement carries no runtime cross-service validation; remote or virtual filesystem search waits for a shared workspace contract or a provider-specific search backend.
+For control-plane and local-target calls, the binary ships with the package on every supported platform (macOS/Linux/Windows, x64/arm64), so no host `rg` install is required. A durable SSH or OCI target instead resolves `rg` through that Agent's subprocess provider and runs it inside the selected execution world; the remote host or container image must therefore provide `rg`. Returned paths are relative to the session workspace and remain follow-up-readable through the routed filesystem because Inventory mounts filesystem and subprocess providers for the same target and workspace.
 
 ## Config
 
@@ -128,7 +128,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 ## Known Limitations and Deferred Work
 
-- **Search and file access have no shared-workspace proof** — returned paths are follow-up-readable only when the workdir and filesystem root denote the same workspace; the package performs no runtime cross-service validation.
-- **The packaged binary is fixed at dependency version** — `@vscode/ripgrep` covers the platforms it ships (macOS/Linux/Windows, x64/arm64); an unsupported platform or a corrupted install fails calls with `SEARCH_FAILED`. Remote or virtual filesystems need a co-located workspace or another search consumer.
+- **Custom non-Inventory providers still own co-location** — Inventory routes filesystem and subprocess through one target workspace, but an independently composed provider pair must preserve that same relationship itself.
+- **Remote targets require `rg` in their toolchain** — the packaged `@vscode/ripgrep` binary covers control-plane and local-target calls; SSH hosts and OCI images resolve their own target-local executable, and a missing installation fails with `SEARCH_FAILED` instead of running the search on the control plane.
 - **The schemas expose one bounded page** — offset pagination, case-mode switches, alternate output modes, and provider-backed discovery remain outside this package; capped complete output requires a spill backend.
 - **Sampling, when enabled, groups by first path segment beneath the search root only** — an over-cap `glob` page balances across those top-level entries, so a result concentrated deeper (one busy directory inside an otherwise even tree) is still shown unevenly below that level; recursive balancing is deferred.

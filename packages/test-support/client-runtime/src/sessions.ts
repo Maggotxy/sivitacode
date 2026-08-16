@@ -184,7 +184,7 @@ export class TestSessions implements ISessions {
 
   /** Calls observed on the service-level face, newest last. */
   readonly calls: {
-    method: 'open' | 'openSubagent' | 'setSubagentCatalogOpen' | 'refreshSubagents'
+    method: 'open' | 'openSubagent' | 'setSubagentCatalogOpen' | 'refreshSubagents' | 'create'
       | 'clear' | 'search' | 'fork'
     args: unknown[]
   }[] = []
@@ -476,6 +476,25 @@ export class TestSessions implements ISessions {
   search(query: string, signal: AbortSignal): ReturnType<ISessions['search']> {
     this.calls.push({ method: 'search', args: [query, signal] })
     return Promise.resolve({ ok: true, value: this.searchStub?.(query, signal) ?? { items: [], hasMore: false } })
+  }
+
+  /**
+   * Create and publish a fixture session using the production service's
+   * caller-visible options.
+   * @param opts - optional identity, working directory, and execution target.
+   * @returns the created session id.
+   */
+  async create(opts: Parameters<ISessions['create']>[0] = {}): Promise<SessionId> {
+    this.calls.push({ method: 'create', args: [opts] })
+    const id = opts.sessionId ?? `test-created-${this.records.size + 1}` as SessionId
+    await this.add({
+      id,
+      summary: {
+        ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }),
+        ...(opts.executionTarget === undefined ? {} : { executionTarget: opts.executionTarget }),
+      },
+    })
+    return id
   }
 
   /**

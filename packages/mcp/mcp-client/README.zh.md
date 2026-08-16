@@ -25,6 +25,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
     serverName: web
     transport: streamable-http
     url: http://localhost:3000/mcp
+    networkOwner: control-plane
     headers:
       Authorization: !!js '`Bearer ${process.env.MCP_TOKEN}`'
 ```
@@ -42,6 +43,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
 | `env` | stdio | 否 | 合并到已清理环境中的额外环境变量 |
 | `cwd` | stdio | 否 | 子进程工作目录 |
 | `url` | http | 是 | MCP 服务器 URL |
+| `networkOwner` | http | 否 | 能够访问 `url` 的网络 namespace；目前固定为 `control-plane` |
 | `headers` | http | 否 | 额外标头（例如认证 token） |
 | `toolCallTimeoutMs` | 两者 | 否 | 每次 `callTool` 调用的超时（默认 60000） |
 | `failOnStartupError` | 两者 | 否 | 初始连接或工具同步失败时拒绝插件激活（默认 `false`） |
@@ -69,6 +71,10 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
 - 断开／崩溃时：supervisor 以指数退避（`reconnect.initialDelayMs` 逐次翻倍，上限 `reconnect.maxDelayMs`）重启原始服务器配置，成功后重新执行发现——恢复的世代会替换前一个，因此工具既不会重复也不会泄漏。中断期间最后一个正常世代保持注册；针对它的调用在恢复前会失败。
 - 重连按中断预算控制：连续失败达到 `reconnect.maxAttempts` 次后，该服务器的工具会被注销，重连停止，直到 HMR 重载或重启 Host。连接存活超过 `maxDelayMs` 会重置预算，因此偶尔崩溃的服务器可以无限恢复，而崩溃循环的服务器——即使短暂连接成功——仍会耗尽上限而非永远重启。
 - 重连状态在日志中对用户可见：reconnecting（warn，含尝试次数和延迟）、recovered（info）、最终失败和 disabled-loss（error）。dispose（资源释放）会取消任何待执行的重连。设置 `reconnect.enabled: false` 时，连接丢失后工具保持注册但调用失败，直到重载——即手动恢复行为。
+
+## 执行拓扑
+
+stdio 与 HTTP 刻意采用不同的所有者。stdio server 通过挂载插件 context 的 `ctx.subprocess` 解析并启动；因此在 execution-target 路由完成后把 MCP 插件挂载到 Agent preset 内，进程会进入对应本机、固定 SSH 或 rootless OCI 世界。进程级全局 MCP row 会在控制平面启动并保持由控制平面持有，因为一个持久连接不能同时属于多个 Agent 目标。Streamable HTTP URL 同样由 SivitaCode 控制面解析和访问，并记录 `networkOwner: control-plane`；它绝不会被静默解释为远端目标的 `localhost`。当前需要目标本地 MCP 时请使用 Agent 作用域 stdio。未来若增加目标本地 HTTP，必须先显式持有带认证 tunnel／proxy 的完整生命周期，schema 才能接纳 `execution-target`。
 
 ## 消费的服务
 
@@ -113,3 +119,4 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
 - **重连在传输关闭时触发**：崩溃的 stdio 子进程会触发重连；Streamable HTTP 失败通过每次请求以及 SDK 传输自身的 SSE（Server-Sent Events）流恢复机制暴露，因此不可达的 HTTP 服务器会按调用重试，而非由 supervisor 重新 spawn。
 - **Native 非文本渲染有损**：图片、音频与资源载荷在模型上下文中会变成占位符，即使执行局部的规范值保留了其 JSON 块。更丰富的 Native 多媒体投影暂缓实现。
 - **不强制执行不受支持的 MCP 输出 schema**：已声明 schema 使用 harness 子集之外的词汇时，`structuredContent` 会回退到 `JsonValue`。
+- **刻意不提供 execution-target HTTP**：目标本地网络需要受控 tunnel／proxy、取消、认证与审计边界；客户端会拒绝该 owner，而不是误连控制面的 `localhost`。

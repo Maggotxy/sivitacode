@@ -98,6 +98,7 @@ export interface Config {
  */
 export class SqliteSessionPersistence extends SessionPersistence implements PersistenceBackend<number> {
   override readonly supportsRawArtifacts = false
+  override readonly supportsDeletion = true
 
   static inject = ['sessions']
 
@@ -180,6 +181,10 @@ export class SqliteSessionPersistence extends SessionPersistence implements Pers
 
   append(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
     return this.coordinator.append(id, events)
+  }
+
+  override delete(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    return this.coordinator.delete(id, signal)
   }
 
   override prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation> {
@@ -335,6 +340,15 @@ export class SqliteSessionPersistence extends SessionPersistence implements Pers
       throw error
       /* v8 ignore stop */
     }
+  }
+
+  /** Delete one session row atomically; the event rows follow by foreign-key cascade. */
+  async deleteStored(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted()
+    await this.ready
+    signal?.throwIfAborted()
+    const result = this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+    return result.changes === 1
   }
 
   /** List all materialized sessions' metadata (every row is a materialized session). */

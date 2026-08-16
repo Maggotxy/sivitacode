@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
 // ---- Mock MCP SDK ----
@@ -62,6 +63,7 @@ async function mountRegistry(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(LocalSubprocessRuntime)
   return ctx
 }
 
@@ -90,7 +92,7 @@ const stdioConfig: Config = {
 describe('mcp-client plugin module exports', () => {
   it('exports name, inject, and Config', () => {
     expect(name).toBe('mcp-client')
-    expect(inject).toEqual(['tools'])
+    expect(inject).toEqual(['tools', 'subprocess'])
     expect(ConfigSchema).toBeDefined()
   })
 
@@ -140,6 +142,17 @@ describe('mcp-client plugin module exports', () => {
       reconnect: { initialDelayMs: 100 },
     } as never)
     expect(partial.reconnect).toEqual({ enabled: true, initialDelayMs: 100, maxDelayMs: 30_000, maxAttempts: 10 })
+  })
+
+  it('pins Streamable HTTP networking to the control plane', () => {
+    const resolved = ConfigSchema({
+      transport: 'streamable-http', serverName: 'web', url: 'http://127.0.0.1:3000/mcp',
+    } as never)
+    if (resolved.transport !== 'streamable-http') throw new Error('expected Streamable HTTP config')
+    expect(resolved.networkOwner).toBe('control-plane')
+    expect(() => ConfigSchema({
+      transport: 'streamable-http', serverName: 'web', url: 'http://127.0.0.1:3000/mcp', networkOwner: 'execution-target',
+    } as never)).toThrow()
   })
 
   it('Config schema rejects an invalid reconnect block', () => {

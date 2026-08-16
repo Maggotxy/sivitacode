@@ -5,7 +5,7 @@ export const PROCESS_SHUTDOWN_TIMEOUT_MS = 5_000
 
 /** Process-exit controller shared by normal completion and Unix signal handlers. */
 export interface ProcessShutdown {
-  /** Start or join graceful disposal before allowing natural completion with `code`. */
+  /** Start or join graceful disposal before preferring natural completion with a forced-exit backstop. */
   shutdown(code: number): Promise<void>
   /** Start graceful disposal followed by exit, or force exit when shutdown is already running. */
   interrupt(code: number): void
@@ -45,7 +45,10 @@ export function createProcessShutdown(
   const completeOnce = (code: number): void => {
     if (completed || forceExited) return
     completed = true
-    clearExitTimeout()
+    // Natural completion wins when disposal releases every handle. Keep the
+    // original bound as an unreferenced backstop so an unowned handle cannot
+    // strand the process, while the timer itself never delays a clean exit.
+    timeout?.unref()
     complete(code)
   }
 

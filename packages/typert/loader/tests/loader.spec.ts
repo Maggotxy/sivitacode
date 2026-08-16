@@ -398,9 +398,9 @@ describe('typert loader', () => {
 
     await ctx.loader.create({ name: '@fixture/steady-failure' })
     await ctx.loader.await()
-    await new Promise(resolve => setTimeout(resolve, 20))
-
-    expect(logged).toHaveBeenCalledWith(expect.objectContaining({ message: 'register failed' }))
+    await vi.waitFor(() => {
+      expect(logged).toHaveBeenCalledWith(expect.objectContaining({ message: 'register failed' }))
+    }, { timeout: 10_000 })
     expect(ctx.typert.getPackage('@fixture/steady-failure')).toBeUndefined()
   })
 })

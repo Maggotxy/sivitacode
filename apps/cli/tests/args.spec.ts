@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseDshArgs } from '../src/args.ts'
 
 const parse = (argv: string[]) => parseDshArgs(argv, '1.2.3')
+const parseSivitaCode = (argv: string[]) => parseDshArgs(argv, '1.2.3', {
+  command: 'sivitacode', product: 'SivitaCode', homeEnvironment: 'SIVITACODE_HOME', runAlias: true, acpAlias: true,
+})
 
 /** Capture the process exit code while muting Commander's output. */
 function exitCode(argv: string[]): number {
@@ -28,6 +31,22 @@ describe('parseDshArgs', () => {
     expect(parse(['web'])).toEqual({ mode: 'profile', profile: 'web', patches: [], args: [] })
     expect(parse(['web', '--patch', 'web.yml']))
       .toEqual({ mode: 'profile', profile: 'web', patches: ['web.yml'], args: [] })
+  })
+
+  it('exposes the SivitaCode run alias without changing dsh compatibility', () => {
+    expect(parseSivitaCode(['run', 'run', 'the', 'tests']))
+      .toEqual({ mode: 'profile', profile: 'headless', patches: [], args: ['run', 'the', 'tests'] })
+    expect(parseSivitaCode(['run', '--patch', 'safe.yml', 'task']))
+      .toEqual({ mode: 'profile', profile: 'headless', patches: ['safe.yml'], args: ['task'] })
+    expect(exitCode(['run', 'task'])).toBe(1)
+  })
+
+  it('exposes the SivitaCode ACP alias without changing dsh compatibility', () => {
+    expect(parseSivitaCode(['acp']))
+      .toEqual({ mode: 'profile', profile: 'acp', patches: [], args: [] })
+    expect(parseSivitaCode(['acp', '--patch', 'automation.yml']))
+      .toEqual({ mode: 'profile', profile: 'acp', patches: ['automation.yml'], args: [] })
+    expect(exitCode(['acp'])).toBe(1)
   })
 
   it('ends the launcher flags at the first token it does not own', () => {

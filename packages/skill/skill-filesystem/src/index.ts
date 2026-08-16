@@ -19,6 +19,7 @@ import z from '@deepseek-ai/schemastery'
 import type Schema from '@deepseek-ai/schemastery'
 import { parse as parseYaml } from 'yaml'
 import type { FileSystem, FsDirEntry, FsTarget } from '@deepseek-ai/dsh-fs'
+import { LOCAL_EXECUTION_WORLD } from '@deepseek-ai/dsh-execution-world'
 import { canonicalizeWatchPath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import {
   BUNDLED_SKILL_RANK,
@@ -150,6 +151,7 @@ export class FileSystemSkillProvider implements SkillProvider {
   private readonly agentsHome: string
   private readonly customSkillDirs: string[]
   private readonly watchManager: SkillWatchManager
+  private readonly watchEnabled: boolean
   private readonly bundledSkillDir: string | undefined
   private disposal: Promise<void> | undefined
 
@@ -163,7 +165,9 @@ export class FileSystemSkillProvider implements SkillProvider {
     this.dshHome = resolveDshHome(config.dshHome)
     this.agentsHome = resolve(config.agentsHome ?? process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents'))
     this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
-    this.watchManager = new SkillWatchManager(ctx, control.invalidate, resolveWatchConfig(config))
+    const watchConfig = resolveWatchConfig(config)
+    this.watchEnabled = watchConfig.enabled
+    this.watchManager = new SkillWatchManager(ctx, control.invalidate, watchConfig)
     control.signal.addEventListener('abort', () => { void this.dispose() }, { once: true })
     // The environment bundled root is a default root: an isolated provider
     // must see only its explicit roots, or every such provider would
@@ -181,9 +185,14 @@ export class FileSystemSkillProvider implements SkillProvider {
    */
   async list(options: SkillLookupOptions): Promise<SkillCandidate[] | SkillProviderObservation> {
     const roots = await this.roots(options.cwd)
+    const fileSystem = optionalFileSystem(this.ctx)
+    const remoteFileSystem = fileSystem !== undefined && fileSystem.executionWorld !== LOCAL_EXECUTION_WORLD
+    const watchedRoots = remoteFileSystem && this.watchEnabled
+      ? roots.filter(root => root.trustedHost === true)
+      : roots
     let complete = true
     try {
-      await this.watchManager.observeRoots(roots)
+      await this.watchManager.observeRoots(watchedRoots)
     } catch (error) {
       if (this.disposal !== undefined) throw error
       complete = false
@@ -194,7 +203,8 @@ export class FileSystemSkillProvider implements SkillProvider {
         candidates.push(skill)
       }
     }
-    return complete ? candidates : { candidates, complete }
+    const cacheable = !this.watchEnabled || !remoteFileSystem || roots.every(root => root.trustedHost === true)
+    return complete && cacheable ? candidates : { candidates, complete, cacheable }
   }
 
   /**

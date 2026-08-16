@@ -41,17 +41,20 @@ interface WebOptions {
  * @returns a fresh program, so one process can parse more than once (tests).
  */
 function webCommand(): Command {
+  const sivita = process.env.SIVITACODE_PRODUCT === '1'
+  const command = sivita ? 'sivitacode web' : 'dsh --profile web'
+  const product = sivita ? 'SivitaCode' : 'DeepSeek Harness'
   return new Command()
-    .name('dsh --profile web')
-    .description('Serve the DeepSeek Harness browser UI.')
+    .name(command)
+    .description(`Serve the ${product} browser UI.`)
     .helpOption('-h, --help', 'show this help')
     .option('--host <host>', 'bind host')
     .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one')
     .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
     .addHelpText('after', `
 Examples:
-  dsh --profile web                          serve on the composed host and port
-  dsh --profile web --port 8080              serve on another port
+  ${command}                          serve on the composed host and port
+  ${command} --port 8080              serve on another port
 `)
 }
 
@@ -66,8 +69,12 @@ export function apply(ctx: Context): void {
   const program = webCommand()
   program.action(() => {
     const options = program.opts<WebOptions>()
-    if (options.host === '0.0.0.0') {
-      program.error('error: --host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
+    if (options.host === '0.0.0.0'
+      && (process.env.SIVITACODE_PRODUCT !== '1'
+        || process.env.SIVITACODE_WEB_PASSWORD === undefined
+        || process.env.SIVITACODE_WEB_PUBLIC_ORIGIN === undefined
+        || process.env.SIVITACODE_WEB_TRUSTED_PROXY_CIDRS === undefined)) {
+      program.error('error: --host 0.0.0.0 requires SivitaCode Web authentication, SIVITACODE_WEB_PUBLIC_ORIGIN, and SIVITACODE_WEB_TRUSTED_PROXY_CIDRS')
     }
     if (options.port !== undefined && !/^\d+$/.test(options.port)) {
       program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)

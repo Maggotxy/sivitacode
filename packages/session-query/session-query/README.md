@@ -7,6 +7,7 @@ English | [中文](README.zh.md)
 ## Reads
 
 - `listSessions(signal?)` reads current persistence metadata, merges live records with live precedence, and returns cloned records in deterministic newest-first order.
+- `deleteSession(sessionId, signal?)` permanently deletes one inactive persisted session through the currently mounted backend. Live ids fail with `SESSION_QUERY_SOURCE_CONFLICT`, absent ids with `SESSION_QUERY_SESSION_NOT_FOUND`, and backend failures with `SESSION_QUERY_PERSISTENCE_FAILED`.
 - `readSession(sessionId)` returns one complete detached raw log after the same core replay validation used by resume; it never enters the session into the live store.
 - `filterSessions(filters, signal?)` applies provider-independent session metadata and availability predicates to that same cloned logical corpus.
 - `filterEvents(sessionId, filters)` extracts first-party semantic documents and applies provider-independent metadata and literal-text predicates in ascending seq order.

@@ -219,7 +219,7 @@ describe('SkillRegistry registry', () => {
   })
 
   it('rejects malformed provider results and every malformed candidate scalar', async () => {
-    const malformedOutputs: unknown[] = [null, 1, {}, { candidates: [], complete: 'yes' }]
+    const malformedOutputs: unknown[] = [null, 1, {}, { candidates: [], complete: 'yes' }, { candidates: [], complete: true, cacheable: 'yes' }]
     for (const [index, output] of malformedOutputs.entries()) {
       const badList = new Context()
       await badList.plugin(SkillRegistry)
@@ -228,7 +228,7 @@ describe('SkillRegistry registry', () => {
         list: () => Promise.resolve(output as readonly SkillCandidate[] | SkillProviderObservation),
         get: () => Promise.resolve(undefined),
       })
-      await expect(badList.skills.list()).rejects.toThrow('list() must return an array or { candidates, complete } observation')
+      await expect(badList.skills.list()).rejects.toThrow('list() must return an array or { candidates, complete, cacheable? } observation')
     }
 
     const cases: { patch: Partial<SkillCandidate>; expected: string }[] = [
@@ -702,6 +702,36 @@ describe('SkillRegistry registry', () => {
     expect((await ctx.skills.get('available-skill'))?.content).toBe('available-skill body.')
     expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['available-skill'])
     expect(listCalls).toBe(3)
+  })
+
+  it('rescans complete provider observations that explicitly forbid caching', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    let listCalls = 0
+    registerProvider(ctx, {
+      name: 'fresh-candidates',
+      async list() {
+        listCalls += 1
+        return {
+          candidates: [{ ...memorySkill('fresh-skill', `Revision ${String(listCalls)}`, 10), provider: 'fresh-candidates' }],
+          complete: true,
+          cacheable: false,
+        }
+      },
+      async get(candidate) {
+        return { ...candidate, content: (candidate.locator as { content: string }).content }
+      },
+    })
+
+    expect(await ctx.skills.snapshot()).toMatchObject({
+      skills: [{ name: 'fresh-skill', description: 'Revision 1' }],
+      complete: true,
+    })
+    expect(await ctx.skills.snapshot()).toMatchObject({
+      skills: [{ name: 'fresh-skill', description: 'Revision 2' }],
+      complete: true,
+    })
+    expect(listCalls).toBe(2)
   })
 
   it('invalidates only the exact registered provider and ignores its late callbacks', async () => {

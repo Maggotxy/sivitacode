@@ -191,6 +191,20 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
   }
 
   /**
+   * Discard a cold ready view before durable deletion while refusing an
+   * unpublished reservation whose caller may still publish the Session.
+   * @param id - session identity selected for deletion.
+   */
+  invalidateForDelete(id: SessionId): void {
+    const entry = this.entries.get(id)
+    if (entry === undefined) return
+    if (entry.phase === 'committing' || entry.phase === 'reserved') {
+      throw new Error(`cannot delete session "${id}" while its persisted preparation is reserved`)
+    }
+    this.remove(entry)
+  }
+
+  /**
    * Discard an exact stale ready source without disturbing an exclusive owner.
    * @param id - changed session identity.
    * @param expected - exact source observed before its revision check.

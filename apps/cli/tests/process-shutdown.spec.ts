@@ -20,7 +20,8 @@ afterEach(() => {
 })
 
 describe('process shutdown', () => {
-  it('completes naturally after disposal resolves and forces exit when it rejects', async () => {
+  it('prefers natural completion after disposal, retains a bounded backstop, and forces on rejection', async () => {
+    vi.useFakeTimers()
     const resolvedExit = vi.fn()
     const resolvedComplete = vi.fn()
     const resolved = createProcessShutdown(() => Promise.resolve(), resolvedExit, resolvedComplete)
@@ -28,6 +29,9 @@ describe('process shutdown', () => {
     expect(resolvedComplete).toHaveBeenCalledOnce()
     expect(resolvedComplete).toHaveBeenCalledWith(0)
     expect(resolvedExit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(PROCESS_SHUTDOWN_TIMEOUT_MS)
+    expect(resolvedExit).toHaveBeenCalledOnce()
+    expect(resolvedExit).toHaveBeenCalledWith(0)
 
     const rejectedExit = vi.fn()
     const rejectedComplete = vi.fn()
@@ -43,6 +47,7 @@ describe('process shutdown', () => {
   })
 
   it('uses process.exitCode for default normal completion', async () => {
+    vi.useFakeTimers()
     const exit = vi.spyOn(process, 'exit').mockImplementation(_code => undefined as never)
     const originalExitCode = process.exitCode
     process.exitCode = undefined
@@ -53,6 +58,8 @@ describe('process shutdown', () => {
 
       expect(process.exitCode).toBe(7)
       expect(exit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(PROCESS_SHUTDOWN_TIMEOUT_MS)
+      expect(exit).toHaveBeenCalledWith(7)
     } finally {
       process.exitCode = originalExitCode
     }
@@ -147,6 +154,7 @@ describe('process shutdown', () => {
   })
 
   it('coalesces normal shutdown calls without treating them as escalation', async () => {
+    vi.useFakeTimers()
     const disposal = deferred()
     const exit = vi.fn()
     const complete = vi.fn()
@@ -162,6 +170,9 @@ describe('process shutdown', () => {
     expect(complete).toHaveBeenCalledOnce()
     expect(complete).toHaveBeenCalledWith(0)
     expect(exit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(PROCESS_SHUTDOWN_TIMEOUT_MS)
+    expect(exit).toHaveBeenCalledOnce()
+    expect(exit).toHaveBeenCalledWith(0)
   })
 
   it('lets a signal force exit while natural completion drains remaining handles', async () => {

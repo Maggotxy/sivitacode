@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 The model-facing `bash` tool registered over the `ctx.shell` executor seam. Foreground execution stays behind that seam; a background process handle is registered with the generic `ctx.jobs` runtime and controlled through `job_output`, `job_list`, and `job_kill` from `@deepseek-ai/dsh-tool-jobs`.
 
+A session carrying a durable `executionTarget` selects the shell mounted in that exact Agent scope for both foreground and background starts. Inventory supplies a target-side Bash executor after its filesystem and subprocess adapters are ready; sessions without a target retain the deployment's host executor. A target executor that exposes no sandbox policy rejects `sandbox_permissions`, so control-plane escalation is never misapplied to SSH or OCI execution.
+
 Requires a loaded executor Service Provider (e.g. `@deepseek-ai/dsh-bash-local`) and the [`@deepseek-ai/dsh-shell-env`](../shell-env/README.md) registry; the plugin stays pending until every injected service exists (`inject: ['tools', 'bash', 'systemPrompt', 'bashEnv']`). The tool contract is bash-dialect — mount a bash-parsing executor.
 
 The package root exposes only the Cordis plugin contract (`name`, `inject`, `Config`, `apply`); result rendering and background-process adaptation remain package-internal.

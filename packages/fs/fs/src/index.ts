@@ -9,6 +9,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { ExecutionWorldIdentity } from '@deepseek-ai/dsh-execution-world'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type {
   FsDirEntry,
@@ -84,8 +85,19 @@ declare module '@deepseek-ai/cordis' {
  * without changing the unguarded provider contract.
  */
 export abstract class FileSystem extends Service {
+  private readonly fallbackExecutionWorld: ExecutionWorldIdentity = Object.freeze({ label: 'unspecified-filesystem' })
+
   constructor(ctx: Context) {
     super(ctx, 'fs')
+  }
+
+  /**
+   * Opaque identity of the environment whose paths this provider addresses.
+   * Concrete production providers override this value; the per-instance
+   * fallback prevents an undeclared provider from matching another by label.
+   */
+  get executionWorld(): ExecutionWorldIdentity {
+    return this.fallbackExecutionWorld
   }
 
   /**

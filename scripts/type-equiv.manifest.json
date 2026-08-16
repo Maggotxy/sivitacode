@@ -2,6 +2,46 @@
   "comment": "Maps each primary ` ```ts type-equiv ` or ` ```ts public-api ` block (by doc + declared symbol + projection) to the source declaration and original JSDoc it must match. Paired `.zh.md` blocks are byte-identical derivatives checked through their unsuffixed sibling and have no duplicate entry. Omit projection for the complete declaration; use public-api with a ` ```ts public-api ` block for a body-stripped public class declaration. verify-type-equiv.ts enforces a 1:1 correspondence between primary blocks and entries. Add an entry when you add a primary source-equivalence block; remove it when you remove the block.",
   "entries": [
     {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutId",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutStatus",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutTargetStatus",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutPhase",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutStep",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutCreate",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRolloutTarget",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/deployment.md",
+      "symbol": "DeploymentRollout",
+      "source": "packages/deployment/inventory/src/types.ts"
+    },
+    {
       "doc": "docs/subsystems/core.md",
       "symbol": "Branded",
       "source": "packages/util/brand/src/index.ts"
@@ -1653,6 +1693,16 @@
     {
       "doc": "docs/subsystems/web-server.md",
       "symbol": "WebRoute",
+      "source": "packages/host/webserver/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/web-server.md",
+      "symbol": "WebRequestGuard",
+      "source": "packages/host/webserver/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/web-server.md",
+      "symbol": "WebUpgradeGuard",
       "source": "packages/host/webserver/src/index.ts"
     },
     {

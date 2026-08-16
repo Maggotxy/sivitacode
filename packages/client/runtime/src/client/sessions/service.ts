@@ -1,3 +1,4 @@
+/* oxlint-disable @stylistic/max-len -- public session creation options stay aligned with the generated Host request. */
 /**
  * SessionRuntime: root sessions service — list snapshot store (manager
  * projection; carries `current`, the persisted selection every
@@ -21,6 +22,7 @@ import type {
 // Value import from the inline-safe wire layer (not the connection plugin):
 // plugin-to-plugin value imports are a bundle purity error.
 import { SESSION_SEARCH_RESULT_LIMIT } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { ExecutionTargetId } from '@deepseek-ai/dsh-execution-world'
 import type {
   HostObservable, SessionMaybeProvideInfo, SessionProvideInfo,
 } from '@deepseek-ai/dsh-client-ui-slots'
@@ -52,6 +54,7 @@ export interface SessionSummary {
    * session actually runs rather than the deployment's current default.
    */
   agentPreset?: string
+  executionTarget?: ExecutionTargetId
   parentId?: SessionId
   /** Coarse durable origin for navigation filtering; not a continuation capability. */
   origin?: 'subagent'
@@ -482,7 +485,7 @@ export class SessionRuntime implements ISessions {
    * @returns the new session id.
    * @throws {SessionCreateError} with the requested id.
    */
-  async create(opts: { workspaceId?: WorkspaceId; cwd?: string; sessionId?: SessionId } = {}): Promise<SessionId> {
+  async create(opts: { workspaceId?: WorkspaceId; cwd?: string; sessionId?: SessionId; executionTarget?: ExecutionTargetId } = {}): Promise<SessionId> {
     const result = await this.manager.create(opts)
     if (!result.ok) throw new SessionCreateError(result.error, opts.sessionId)
     this.projectList()

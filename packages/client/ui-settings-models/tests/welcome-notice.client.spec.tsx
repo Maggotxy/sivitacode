@@ -61,14 +61,13 @@ function mount(version?: string, mutateImpl: () => Promise<unknown> = () => Prom
 }
 
 describe('WelcomeNotice', () => {
-  it('uses the exact owner copy in both GUI locales', () => {
-    expect(WELCOME_NOTICE_COPY.en).toEqual({
-      title: 'Internal Testing Notice',
-      body: "DeepSeek Harness 0.1 remains in testing for Harness developers. Many areas need further improvement, and we welcome feedback from the developer community. DeepSeek Harness's core plugins and foundational APIs will continue to evolve rapidly over the coming months.\n\nWe look forward to exploring the limits of intelligence with developers around the world, building on open-source, open, reusable, and composable infrastructure. We welcome Harness developers everywhere to join the DSH plugin ecosystem.",
-      continueLabel: 'Continue',
-    })
+  it('routes both GUI locales through the versioned product copy', () => {
+    expect(en.welcomeTitle).toBe(WELCOME_NOTICE_COPY.en.title)
     expect(en.welcomeBody).toBe(WELCOME_NOTICE_COPY.en.body)
+    expect(en.welcomeContinue).toBe(WELCOME_NOTICE_COPY.en.continueLabel)
+    expect(zh.welcomeTitle).toBe(WELCOME_NOTICE_COPY.zh.title)
     expect(zh.welcomeBody).toBe(WELCOME_NOTICE_COPY.zh.body)
+    expect(zh.welcomeContinue).toBe(WELCOME_NOTICE_COPY.zh.continueLabel)
   })
 
   it('renders one blocking modal action and focuses the title', async () => {

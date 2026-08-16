@@ -70,12 +70,12 @@ describe('ACP prompt lifecycle', () => {
     })
   })
 
-  it('rejects a failed turn and never publishes its partial chunks', async () => {
+  it('rejects a failed turn after publishing its explicitly incomplete live text', async () => {
     harness = await makeBridgeHarness({ script: [errorResponse('provider boom')] })
     const sessionId = await newSession(harness)
     await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] }))
       .rejects.toThrow(/turn failed: provider boom/)
-    expect(messageText(harness)).toBe('')
+    expect(messageText(harness)).toBe('partial')
   })
 
   it('rejects an ordinary plugin failure through the same prompt boundary', async () => {
@@ -257,7 +257,7 @@ describe('ACP prompt lifecycle', () => {
 
     await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'two' }] }))
       .resolves.toEqual({ stopReason: 'end_turn' })
-    await vi.waitFor(() => { expect(messageText(harness!)).toBe('next') })
+    await vi.waitFor(() => { expect(messageText(harness!)).toBe('partialnext') })
   })
 
   it('a retry turn adopts the prompt instead of rejecting at the failed turn end', async () => {
@@ -273,7 +273,7 @@ describe('ACP prompt lifecycle', () => {
     const sessionId = await newSession(harness)
     const result = await harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })
     expect(result.stopReason).toBe('end_turn')
-    await vi.waitFor(() => { expect(messageText(harness!)).toBe('recovered') })
+    await vi.waitFor(() => { expect(messageText(harness!)).toBe('partialrecovered') })
   })
 
   it('a failed turn with no retry still rejects', async () => {

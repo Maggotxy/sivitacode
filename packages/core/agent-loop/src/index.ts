@@ -23,6 +23,8 @@ import { errorChain } from '@deepseek-ai/dsh-llm'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { SessionId, SessionPreparation } from '@deepseek-ai/dsh-session'
 import type { Session, SessionHeader } from '@deepseek-ai/dsh-session'
+import type { ExecutionWorldRoute } from '@deepseek-ai/dsh-execution-world'
+import type {} from '@deepseek-ai/dsh-execution-world'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
@@ -149,6 +151,8 @@ function assertAgentOptions(options: AgentOptions): void {
 /** Prepared-but-unpublished agent resources sharing one memoized teardown. */
 interface PreparedAgent {
   agent: ReactLoopAgent
+  /** Durable target route installed before user setup and publication. */
+  route?: ExecutionWorldRoute
   /** Aborts when the factory unloads, the caller cancels, or teardown begins — ends any setup await. */
   signal: AbortSignal
   /** Enter registries, announce, notify session-start, and start the machine. */
@@ -469,7 +473,14 @@ export class AgentLoop extends Service implements AgentFactory {
         ? callerSignal.reason
         : new Error(`agent "${id}" creation aborted`, { cause: callerSignal.reason })
     }
-    const loopCtx = this.runtime.ctx
+    const target = session.header.executionTarget
+    const route = target === undefined
+      ? undefined
+      : this.runtime.ctx.get('executionWorldRouter')?.route(this.runtime.ctx, target, session.header.cwd)
+    if (target !== undefined && route === undefined) {
+      throw new Error(`agent "${id}" requires execution target '${target}', but execution-world routing is unavailable`)
+    }
+    const loopCtx = route?.context ?? this.runtime.ctx
 
     // Deactivation fuses three owners, each with its own reason: the caller's
     // cancellation signal, the owner fiber's unload, and factory teardown.
@@ -552,6 +563,7 @@ export class AgentLoop extends Service implements AgentFactory {
 
       return {
         agent,
+        ...route === undefined ? {} : { route },
         signal: abort.signal,
         publish: (source) => {
           assertLive()
@@ -635,6 +647,7 @@ export class AgentLoop extends Service implements AgentFactory {
     const session = ownedPreparation.session
     const prepared = this.prepare(ownerCtx, id, agentOptions, session, signal)
     try {
+      await raceAbort(prepared.route?.setup(prepared.agent.ctx), prepared.signal, id)
       const setupCommit = await raceAbort(setup?.(prepared.agent.ctx), prepared.signal, id)
       setupCommit?.commit()
       return prepared.publish(source)

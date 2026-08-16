@@ -13,6 +13,7 @@ import { access, stat } from 'node:fs/promises'
 import { delimiter, extname, isAbsolute, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import * as nodePty from 'node-pty'
+import { LOCAL_EXECUTION_WORLD } from '@deepseek-ai/dsh-execution-world'
 import type { IPtyForkOptions } from 'node-pty'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type {
@@ -35,6 +36,9 @@ import { LocalTerminalHandle } from './terminal.ts'
  * JavaScript-observable host exit.
  */
 export class LocalSubprocessRuntime extends SubprocessRuntime {
+  /** Host-local identity shared with the local filesystem provider. */
+  override get executionWorld() { return LOCAL_EXECUTION_WORLD }
+
   /** Live handles retained for normal disposal and synchronous host-exit finalization. */
   private live = new Set<LocalSubprocessHandle>()
   /** Live terminals retained through normal quiescence or host-exit finalization. */

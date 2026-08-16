@@ -20,6 +20,8 @@ export type DirectoryPickerEnv = Readonly<
 export interface DirectoryPickerHostFacts {
   /** Effective webserver bind host (the schema's closed loopback/all-interfaces union). */
   bindHost: HttpServerConfig['host']
+  /** Whether a reverse proxy, tunnel, or declared authority lets a browser reach this otherwise loopback-bound host remotely. */
+  remoteBrowserAccess: boolean
   /** Host process platform. */
   platform: NodeJS.Platform
   /** Environment sample; SSH marks a remote operator, DISPLAY/WAYLAND_DISPLAY a Linux display. */
@@ -45,6 +47,9 @@ const present = (value: string | undefined): boolean => value !== undefined && v
  * @returns the backend kind to mount.
  */
 export function resolveDirectoryPickerBackend(facts: DirectoryPickerHostFacts): DirectoryPickerBackendKind {
+  // A private loopback hop behind FRP, Nginx, or another reverse proxy does
+  // not make the remote operator able to see a chooser on the host display.
+  if (facts.remoteBrowserAccess) return 'browse'
   if (facts.bindHost !== '127.0.0.1') return 'browse'
   if (present(facts.env.SSH_CONNECTION) || present(facts.env.SSH_TTY)) return 'browse'
   if (facts.platform === 'darwin' || facts.platform === 'win32') return 'native'

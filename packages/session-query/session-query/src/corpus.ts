@@ -77,6 +77,34 @@ export class SessionCorpus {
   }
 
   /**
+   * Permanently delete one inactive persisted session from the current backend.
+   * @param sessionId - exact persisted identity.
+   * @param signal - optional cancellation before destructive storage work starts.
+   */
+  async deleteSession(sessionId: SessionId, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
+    if (this._ctx.sessions.get(sessionId) !== undefined) {
+      throw new SessionQueryError(
+        `cannot delete session "${sessionId}" while it is live`,
+        'SESSION_QUERY_SOURCE_CONFLICT',
+      )
+    }
+    const persistence = this._persistence
+    if (persistence === undefined) throw notFound(sessionId)
+    try {
+      if (!await persistence.delete(sessionId, signal)) throw notFound(sessionId)
+    } catch (error: unknown) {
+      if (signal?.aborted) signal.throwIfAborted()
+      if (error instanceof SessionQueryError) throw error
+      throw new SessionQueryError(
+        `failed to delete session "${sessionId}": ${errorMessage(error)}`,
+        'SESSION_QUERY_PERSISTENCE_FAILED',
+        { cause: error },
+      )
+    }
+  }
+
+  /**
    * Load one logical source, preferring a detached live snapshot.
    *
    * A known live target never consults persistence, so an optional backend's

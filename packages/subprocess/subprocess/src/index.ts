@@ -9,6 +9,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { ExecutionWorldIdentity } from '@deepseek-ai/dsh-execution-world'
 import { DSH_ENV_PREFIX } from './types.ts'
 import type { SubprocessHandle, SubprocessSpawnSpec } from './types.ts'
 import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from './types.ts'
@@ -100,8 +101,18 @@ declare module '@deepseek-ai/cordis' {
  *   when the top-level process exits.
  */
 export abstract class SubprocessRuntime extends Service {
+  private readonly fallbackExecutionWorld: ExecutionWorldIdentity = Object.freeze({ label: 'unspecified-subprocess' })
+
   constructor(ctx: Context) {
     super(ctx, 'subprocess')
+  }
+
+  /**
+   * Opaque identity of the environment in which this provider resolves and
+   * starts processes. Production providers override this value.
+   */
+  get executionWorld(): ExecutionWorldIdentity {
+    return this.fallbackExecutionWorld
   }
 
   /**

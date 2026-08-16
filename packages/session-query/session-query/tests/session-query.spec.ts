@@ -30,6 +30,7 @@ function eventLog(text = 'hello'): SessionEvent[] {
 
 class TestPersistence extends SessionPersistence {
   override readonly supportsRawArtifacts = false
+  override readonly supportsDeletion = true
 
   static entries = new Map<SessionIdType, { meta: SessionHeader; events: SessionEvent[] }>()
   static listFailure: unknown
@@ -74,6 +75,11 @@ class TestPersistence extends SessionPersistence {
     if (entry === undefined) return Promise.reject(new Error('missing test session'))
     entry.events.push(...structuredClone(events))
     return Promise.resolve()
+  }
+
+  override delete(id: SessionIdType, signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted()
+    return Promise.resolve(TestPersistence.entries.delete(id))
   }
 
   load(id: SessionIdType): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
@@ -853,6 +859,21 @@ describe('session-query exact reads', () => {
     expect(records.every(record => record.live && !record.persisted)).toBe(true)
     Object.assign(records[2]!.header, { createdAt: 99 })
     expect(older.header.createdAt).toBe(1)
+  })
+
+  it('deletes only inactive persisted sessions and returns typed failures', async () => {
+    const durable = header('delete-durable', 1)
+    TestPersistence.reset([{ meta: durable, events: eventLog() }])
+    const ctx = await liveContext()
+    await ctx.plugin(TestPersistence)
+
+    await expect(ctx.sessionQuery.deleteSession(durable.id)).resolves.toBeUndefined()
+    await expect(ctx.sessionQuery.deleteSession(durable.id))
+      .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
+
+    const live = ctx.sessions.create(SessionId('delete-live'))
+    await expect(ctx.sessionQuery.deleteSession(live.id))
+      .rejects.toThrow(expectCode('SESSION_QUERY_SOURCE_CONFLICT'))
   })
 
   it('filters sessions symmetrically and owns mutable filter values immediately', async () => {

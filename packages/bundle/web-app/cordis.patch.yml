@@ -51,15 +51,36 @@
     - id: storage
       name: '@deepseek-ai/dsh-storage'
 
-    - id: storage-json
-      name: '@deepseek-ai/dsh-storage-json'
+    # One WAL database safely serves Web and a separate `sivitacode acp`
+    # process. Pre-release storage has no JSON migration compatibility.
+    - id: storage-sqlite
+      name: '@deepseek-ai/dsh-storage-sqlite'
+      inject: [webStartup]
       config:
-        root: !!js dshHomePath('storages')
+        path: !!js dshHomePath('sivitacode.db')
+        journalMode: wal
 
     - id: storage-domain
       name: '@deepseek-ai/dsh-storage-domain'
       config:
-        backend: json
+        backend: sqlite
+
+    # Persistent SivitaCode accounts, Argon2id credentials, server-side
+    # sessions, request actors, RBAC, and security audit. The environment
+    # values are used only to create the first administrator in an empty home.
+    - id: access-control
+      name: '@deepseek-ai/dsh-access-control'
+      disabled: !!js process.env.SIVITACODE_WEB_PASSWORD === undefined
+      config:
+        bootstrapUsername: !!js process.env.SIVITACODE_WEB_ADMIN_USERNAME ?? 'admin'
+        bootstrapPassword: !!js process.env.SIVITACODE_WEB_PASSWORD
+        idleTimeoutMinutes: 60
+        absoluteTimeoutHours: 24
+
+    # Authorized, non-secret local and SSH deployment target registry.
+    - id: deployment-inventory
+      name: '@deepseek-ai/dsh-deployment-inventory'
+      disabled: !!js process.env.SIVITACODE_WEB_PASSWORD === undefined
 
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
@@ -89,6 +110,11 @@
     # an overlay to pin the interaction.
     - id: directory-picker
       name: '@deepseek-ai/dsh-host-directory-picker-auto'
+      inject: [webStartup]
+      config:
+        # Reverse proxies and tunnels keep the private hop loopback-bound even
+        # though the operator's browser cannot see a chooser on this host.
+        remoteBrowserAccess: !!js ctx.webStartup.trustedHosts.length > 0 || process.env.SIVITACODE_WEB_PUBLIC_ORIGIN !== undefined
 
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
@@ -119,6 +145,19 @@
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
         port: !!js ctx.webStartup.port ?? 3080
 
+    # Optional administrator login. Public SivitaCode launches enable it from
+    # the launching environment; loopback development remains login-free.
+    - id: web-auth
+      name: '@deepseek-ai/dsh-web-app/auth'
+      inject: [accessControl]
+      disabled: !!js process.env.SIVITACODE_WEB_PASSWORD === undefined
+      config:
+        enabled: true
+        secureCookie: !!js process.env.SIVITACODE_WEB_INSECURE_COOKIE !== '1'
+        publicOrigin: !!js process.env.SIVITACODE_WEB_PUBLIC_ORIGIN
+        trustedProxyCidrs: !!js (process.env.SIVITACODE_WEB_TRUSTED_PROXY_CIDRS ?? '').split(',').filter(Boolean)
+        maxFailuresPerMinute: 10
+
     # Web glue owned by this bundle: resolves the built frontend dist (an
     # assembly fact of dsh-web-app, never user config), mounts the
     # frontend-static fallback owner, registers the web-surface prompt
@@ -134,6 +173,7 @@
         printUrl: true
         surfaceContext: true
         trustedHosts: !!js ctx.webStartup.trustedHosts
+        publicOrigin: !!js process.env.SIVITACODE_WEB_PUBLIC_ORIGIN
 
     # The client-plugin reload chain, always mounted: it is idle until a
     # rebuild watcher (pnpm run dev:web) actually rewrites client bundles. It

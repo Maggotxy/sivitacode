@@ -355,10 +355,14 @@ export class SystemPrompt extends Service {
     this.toolOrder = validateToolOrder(config.toolOrder)
     // Keep harness-owned openers independent of the selected loop plugin.
     if (config.includeHarnessIdentity ?? true) {
+      // SivitaCode keeps the upstream compatibility entry, but sessions
+      // launched through its dedicated binary must identify the product the
+      // user is actually operating.
+      const product = process.env.SIVITACODE_PRODUCT === '1' ? 'SivitaCode' : 'DeepSeek Harness'
       this.section({
         name: 'harness:identity',
         order: -100,
-        text: 'You are an AI agent powered by DeepSeek Harness.',
+        text: `You are an AI agent powered by ${product}.`,
       })
     }
     this.section({

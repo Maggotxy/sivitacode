@@ -239,6 +239,27 @@ describe('bash tool', () => {
     expect(text(result)).toBe('hello\n')
   })
 
+  it('uses the shell mounted in a selected execution-target Agent scope', async () => {
+    const ctx = await setup()
+    const targetContext = ctx.isolate('shell', Symbol('bash-target'))
+    const targetFiber = await targetContext.plugin(RecordingSandboxExecutor)
+    try {
+      const id = SessionId('bash-target-session')
+      const agent = {
+        id,
+        ctx: targetContext,
+        session: { id, header: { version: 0, id, createdAt: 0, cwd: '/srv/project', executionTarget: 'target-a' } },
+      } as unknown as Agent
+      const result = await call(ctx, 'bash', { command: 'printf host', description: 'route proof' }, agent)
+      expect(result.isError).toBe(false)
+      expect(text(result)).toContain('ok')
+      expect(targetContext.shell).toBeInstanceOf(RecordingSandboxExecutor)
+    } finally {
+      await targetFiber.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('reports (no output) for silent commands', async () => {
     const ctx = await setup()
     const result = await call(ctx, 'bash', { command: 'true', description: 'test command' })

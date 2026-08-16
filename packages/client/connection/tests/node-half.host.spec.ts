@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import type { AccessControlService, AccessPermission } from '@deepseek-ai/dsh-access-control'
 import { RpcId, type ClientRequest } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { WebServer, WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { API_PATH, apply, HOST_EVENTS_PATH, inject, MUX_EVENTS_PATH, type HostConnectionHandle } from '../src/index.ts'
@@ -211,6 +212,87 @@ describe('connection node half', () => {
     }), declared.response)
     expect(declared.state.status).toBe(404)
     await dispose()
+  })
+
+  it('enforces server-selected actor permissions before API dispatch', async () => {
+    const ctx = new Context()
+    const routes: WebRoute[] = []
+    ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
+    ctx.provide('apiProxy', {} as unknown as ApiProxy)
+    const checked: AccessPermission[] = []
+    ctx.provide('accessControl', {
+      actorForRequest: () => ({ userId: 'viewer', username: 'reader', roles: ['viewer'], sessionId: 'session' }),
+      runAs: (_actor: unknown, operation: () => unknown) => {
+        return operation()
+      },
+      authorize: async (permission: AccessPermission) => {
+        checked.push(permission)
+        if (permission !== 'read') throw new Error('denied')
+        return {} as never
+      },
+    } as unknown as AccessControlService)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const route = routes[0]!
+
+    const readable = fakeResponse()
+    await route.handler(fakeRequest({ host: '127.0.0.1:3080' }, '/api/session.list'), readable.response)
+    expect(readable.state.status).toBe(404)
+
+    const operated = fakeResponse()
+    await route.handler(fakePost({ host: '127.0.0.1:3080' }, '/api/session.create', {
+      type: 'client-request', rpcId: 'create', method: 'session.create', payload: {},
+    }), operated.response)
+    expect(operated.state).toMatchObject({ status: 403, body: 'forbidden' })
+    expect(checked).toEqual(['read', 'operate'])
+    await fiber.dispose()
+  })
+
+  it('allows authenticated privileged methods from a declared authority after RBAC', async () => {
+    const ctx = new Context()
+    const routes: WebRoute[] = []
+    ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
+    ctx.provide('apiProxy', {
+      host: {
+        async pickDirectory(request: { rpcId: RpcId }) {
+          return { rpcId: request.rpcId, result: { ok: true, value: { path: '/workspace' } } }
+        },
+      },
+    } as unknown as ApiProxy)
+    const actor = { userId: 'admin', username: 'admin', roles: ['admin'] as const, sessionId: 'session' }
+    const checked: AccessPermission[] = []
+    ctx.provide('accessControl', {
+      actorForRequest: () => actor,
+      currentActor: () => actor,
+      runAs: (_actor: unknown, operation: () => unknown) => operation(),
+      authorize: async (permission: AccessPermission) => {
+        checked.push(permission)
+        return actor
+      },
+    } as unknown as AccessControlService)
+    const fiber = ctx.plugin({
+      inject: [...inject],
+      apply: (pluginCtx) => {
+        apply(pluginCtx, { trustedHosts: ['harness.example'] })
+      },
+    })
+    await fiber.await()
+
+    const response = fakeResponse()
+    await routes[0]!.handler(fakePost({
+      host: 'harness.example', origin: 'http://harness.example', 'sec-fetch-site': 'same-origin',
+    }, '/api/host.pickDirectory', {
+      type: 'client-request', rpcId: 'pick', method: 'host.pickDirectory', payload: {},
+    }), response.response)
+
+    expect(response.state.status).toBe(200)
+    expect(JSON.parse(String(response.state.body))).toMatchObject({
+      type: 'server-response',
+      rpcId: 'pick',
+      result: { ok: true, value: { path: '/workspace' } },
+    })
+    expect(checked).toEqual(['operate'])
+    await fiber.dispose()
   })
 
   it('provides a disposable dedicated RPC channel without requiring apiProxy', async () => {

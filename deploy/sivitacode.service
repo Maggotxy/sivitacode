@@ -1,0 +1,25 @@
+[Unit]
+Description=SivitaCode Web coding agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sivitacode
+Group=sivitacode
+WorkingDirectory=/opt/sivitacode/current
+EnvironmentFile=/etc/sivitacode/sivitacode.env
+ExecStart=/usr/bin/node /opt/sivitacode/current/node_modules/@deepseek-ai/dsh/lib/sivitacode.js web --host 127.0.0.1 --port 3080 --trusted-host code.example.com
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sivitacode
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

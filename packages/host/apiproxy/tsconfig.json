@@ -48,6 +48,9 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../util/execution-world"
+    },
+    {
       "path": "../../core/tools"
     },
     {

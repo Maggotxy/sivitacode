@@ -101,6 +101,9 @@ export abstract class SessionPersistence extends Service {
    */
   abstract readonly supportsRawArtifacts: boolean
 
+  /** Whether this backend implements permanent inactive-session deletion. */
+  readonly supportsDeletion: boolean = false
+
   /**
    * Read a session's backend-owned artifact text verbatim — the exact durable
    * bytes the backend wrote (decoded from its physical encoding, e.g. a
@@ -141,6 +144,21 @@ export abstract class SessionPersistence extends Service {
    * @param events - the contiguous batch to persist, in seq order.
    */
   abstract append(id: SessionId, events: readonly SessionEvent[]): Promise<void>
+
+  /**
+   * Permanently delete one inactive materialized session.
+   *
+   * The default preserves compatibility for third-party append-only backends
+   * while making unsupported deletion explicit. First-party backends override
+   * this through the shared coordinator, which refuses live or reserved ids.
+   * @param _id - persisted session identity.
+   * @param signal - optional cancellation before destructive storage work starts.
+   * @returns whether a materialized session existed and was deleted.
+   */
+  delete(_id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted()
+    return Promise.reject(new Error('this session persistence backend does not support deletion'))
+  }
 
   /**
    * Prepare the exact unpublished Session used by resume. Implementations may

@@ -112,6 +112,30 @@ describe('default deployment (with dsh-fs-observation-policy)', () => {
     })
   })
 
+  it('uses the filesystem mounted in a selected execution-target Agent scope', async () => {
+    const targetDir = await mkdtemp(join(tmpdir(), 'dsh-tool-fs-target-'))
+    await writeFile(join(dir, 'where.txt'), 'control-plane')
+    await writeFile(join(targetDir, 'where.txt'), 'execution-target')
+    const targetContext = ctx.isolate('fs', Symbol('tool-fs-target'))
+    const targetFiber = await targetContext.plugin(LocalFileSystem, { cwd: targetDir })
+    try {
+      const result = await ctx.tools.execute({
+        signal: testToolSignal, callId: CallId(`call-${++callCounter}`), name: 'read',
+        arguments: { file_path: 'where.txt' },
+        agent: {
+          ctx: targetContext,
+          session: { header: { cwd: targetDir, executionTarget: 'target-a' } },
+        } as never,
+      })
+      expect(result.isError).toBe(false)
+      expect(text(result)).toContain('execution-target')
+      expect(text(result)).not.toContain('control-plane')
+    } finally {
+      await targetFiber.dispose()
+      await rm(targetDir, { recursive: true, force: true })
+    }
+  })
+
   describe('read', () => {
     it('returns line-numbered content', async () => {
       await writeFile(join(dir, 'a.txt'), 'alpha\nbeta')

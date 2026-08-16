@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { posix } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type { ExecutionWorldIdentity } from '@deepseek-ai/dsh-execution-world'
 import { FileType, Sandbox, SandboxNotFoundError } from 'e2b'
 
 export {
@@ -80,6 +81,8 @@ export class E2BRuntime extends Service {
 
   /** Validated remote working directory shared by provider adapters. */
   readonly cwd: string
+  /** Opaque identity shared only by adapters backed by this exact sandbox owner. */
+  readonly executionWorld: ExecutionWorldIdentity = Object.freeze({ label: `e2b:${randomUUID()}` })
   /** Remote directory reserved for adapter-owned process and terminal state. */
   readonly runtimeRoot: string
 

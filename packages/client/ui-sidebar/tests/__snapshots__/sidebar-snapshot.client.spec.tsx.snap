@@ -19,11 +19,11 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       >
         <svg
           aria-hidden="true"
-          class="railFish"
-          data-content="965fe321"
+          class="railMark"
+          data-content="e96181e7"
           fill="none"
-          height="17.6580310880829"
-          viewBox="0 0 23.16 17.04"
+          height="24"
+          viewBox="0 0 24 24"
           width="24"
         />
         <svg
@@ -102,11 +102,11 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       >
         <svg
           aria-hidden="true"
-          data-content="951274b9"
+          data-content="c7691a69"
           fill="none"
           height="24"
-          viewBox="0 0 182 24"
-          width="182"
+          viewBox="0 0 150 24"
+          width="150"
         />
       </button>
       <button
@@ -195,11 +195,11 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       >
         <svg
           aria-hidden="true"
-          data-content="951274b9"
+          data-content="c7691a69"
           fill="none"
           height="24"
-          viewBox="0 0 182 24"
-          width="182"
+          viewBox="0 0 150 24"
+          width="150"
         />
       </button>
       <button

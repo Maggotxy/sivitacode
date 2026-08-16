@@ -277,6 +277,43 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
       }
     })
 
+    it('permanently deletes one materialized session without affecting its siblings', async () => {
+      const { persistence, dispose } = await make()
+      try {
+        const removed = meta('delete-me', '/work')
+        const retained = meta('retain-me', '/work')
+        for (const session of [removed, retained]) {
+          await persistence.create(session)
+          await persistence.append(session.id, oneTurnLog())
+        }
+
+        expect(await persistence.delete(removed.id)).toBe(true)
+        expect(await persistence.delete(removed.id)).toBe(false)
+        expect((await persistence.list()).map(session => session.id)).toEqual([retained.id])
+        await expect(persistence.load(removed.id)).rejects.toThrow(/not found/)
+        expect((await persistence.load(retained.id)).events).toEqual(oneTurnLog())
+      } finally {
+        await dispose()
+      }
+    })
+
+    it('honors a pre-aborted deletion before changing durable state', async () => {
+      const { persistence, dispose } = await make()
+      try {
+        const stored = meta('delete-aborted')
+        await persistence.create(stored)
+        await persistence.append(stored.id, oneTurnLog())
+        const controller = new AbortController()
+        const reason = new Error('do not delete')
+        controller.abort(reason)
+
+        await expect(persistence.delete(stored.id, controller.signal)).rejects.toBe(reason)
+        expect((await persistence.list()).map(session => session.id)).toContain(stored.id)
+      } finally {
+        await dispose()
+      }
+    })
+
     it('rejects pre-aborted observation reads with the exact cancellation reason', async () => {
       const { persistence, dispose } = await make()
       try {

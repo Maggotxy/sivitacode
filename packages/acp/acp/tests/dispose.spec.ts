@@ -168,6 +168,8 @@ describe('ACP connection ownership', () => {
 
   it('a client disconnect disposes every owned session without root-context disposal', async () => {
     harness = await makeBridgeHarness({ script: ['hang'] })
+    let agentsAtClose: number | undefined
+    harness.ctx.on('acp/closed', () => { agentsAtClose = harness?.ctx.agents.list().length })
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const agent = harness.ctx.agents.get(SessionId(sessionId))!
@@ -179,6 +181,7 @@ describe('ACP connection ownership', () => {
     expect(agent.status).toBe('idle')
     expect(harness.ctx.agents.get(SessionId(sessionId))).toBeUndefined()
     expect(harness.ctx.sessions.get(SessionId(sessionId))).toBeUndefined()
+    expect(agentsAtClose).toBe(0)
   })
 
   it('a failed client transport still disposes every owned session', async () => {

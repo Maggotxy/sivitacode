@@ -2,13 +2,14 @@
 
 English | [中文](README.zh.md)
 
-The filesystem stack: a provider contract (execution-world paths, bounded text IO, and atomic mutation with an optional version guard), a local implementation, a policy gate plugin (observed-state + read-before-edit + version-guarded write/edit), the model-facing file tools + executor, and the ripgrep-backed discovery tools. All **product** packages.
+The filesystem stack: a provider contract (execution-world identity and paths, bounded text IO, and atomic mutation with an optional version guard), a local implementation, a policy gate plugin (observed-state + read-before-edit + version-guarded write/edit), the model-facing file tools + executor, and the ripgrep-backed discovery tools. All **product** packages.
 
 | Package | Role | ctx key |
 |---|---|---|
 | `fs/` | Service Definition: canonical process paths/file URIs/containment, text IO, and atomic mutation primitives; owns the `fs/*` policy events | `ctx.fs` |
 | `fs-local/` | Local-filesystem `FileSystem` implementation | (registers `ctx.fs`) |
 | [`e2b/fs-e2b`](../e2b/fs-e2b/README.md) | E2B-backed `FileSystem` implementation sharing the remote runtime owned by `ctx.e2b` | (registers `ctx.fs`) |
+| [`ssh/fs-ssh`](../ssh/fs-ssh/README.md) | Pinned-host SSH `FileSystem` implementation sharing the remote runtime owned by `ctx.ssh` | (registers `ctx.fs`) |
 | `fs-sandbox/` | Sandbox-enforcing `FileSystem`: extends `fs-local` and fences write/edit by the per-call mode + workspace root policy (read-only denies, workspace-write contains to the session workspace + temp roots), reads pass through | (registers `ctx.fs`) |
 | `fs-observation-policy/` | Policy gate plugin: observed-state + read-before-edit + version-guarded write/edit, via the `fs/*` event gate | (no service — `fs/*` listeners) |
 | `tool-fs/` | Model-facing `read`/`write`/`edit` tools AND the executor (reads via `ctx.fs`, owns read windowing, dispatches `fs/*`); preserves filesystem semantics for session-cwd-relative paths and advertises sandbox escalation fields when the mounted `ctx.fs` confines | (registers on `ctx.tools`) |

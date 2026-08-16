@@ -7,6 +7,7 @@ These zero-dependency packages provide small primitives shared by multiple capab
 | Package | Role |
 |---|---|
 | [`brand/`](brand/README.md) | Provides nominally branded types |
+| [`execution-world/`](execution-world/README.md) | Provides opaque execution-environment identities |
 | [`paths/`](home-paths/README.md) | Resolves the Harness data root and shared paths |
 | [`timeout/`](timeout/README.md) | Provides deadline and timeout classification primitives |
 | [`retention/`](output-retention/README.md) | Bounds retained text and item collections |

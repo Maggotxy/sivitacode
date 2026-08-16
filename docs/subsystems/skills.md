@@ -14,15 +14,17 @@ The registry is host+per-scope layered, the shape the [tools registry](tools.md)
 
 Within one layer, duplicate names resolve by rank, provider order, then local order; summaries sort by name. A rejected `list()` is logged and omitted from an incomplete observation, while an explicit incomplete observation contributes usable candidates without making the result cacheable; malformed candidates fail fast. Each provider factory receives a registration-scoped control whose `invalidate()` clears completed catalogs only while that exact registration remains active and whose signal aborts on failed registration or disposal. An in-flight discovery retries once when its provider generation changes; a second change returns the latest candidates incomplete and uncached. Provider and runtime mutations emit the unfiltered `skills/change` invalidation event; it carries no diff, so consumers refetch `snapshot()` with their own lookup options.
 
-An array returned by `SkillProvider.list()` is complete-discovery shorthand. `SkillProviderObservation` lets a provider expose candidates that remain directly loadable while reporting that the observation is not authoritative.
+An array returned by `SkillProvider.list()` is complete-discovery shorthand. `SkillProviderObservation` lets a provider expose candidates that remain directly loadable while independently reporting whether discovery is authoritative and whether that complete result is safe to reuse.
 
 ```ts type-equiv
 /** Provider candidates plus whether the current discovery is authoritative. */
 interface SkillProviderObservation {
   /** Candidates available from the current provider discovery. */
   readonly candidates: readonly SkillCandidate[]
-  /** Whether discovery completed and these candidates may be cached. */
+  /** Whether discovery completed successfully. */
   readonly complete: boolean
+  /** Whether a complete observation may be reused across later lookups. Defaults to `complete`. */
+  readonly cacheable?: boolean
 }
 ```
 
@@ -304,7 +306,7 @@ async snapshot(options: SkillViewOptions = {}): Promise<SkillCatalogSnapshot>
 async get(name: string, options: SkillViewOptions = {}): Promise<SkillDefinition | undefined>
 ```
 
-Source: [`packages/skill/skill/src/index.ts:357`](../../packages/skill/skill/src/index.ts)
+Source: [`packages/skill/skill/src/index.ts:361`](../../packages/skill/skill/src/index.ts)
 
 <a id="skills-events"></a>
 
@@ -327,5 +329,5 @@ A skill provider, runtime contribution, or provider-backed catalog may have chan
 'skills/change'(): void
 ```
 
-Source: [`packages/skill/skill/src/index.ts:297`](../../packages/skill/skill/src/index.ts)
+Source: [`packages/skill/skill/src/index.ts:299`](../../packages/skill/skill/src/index.ts)
 <!-- END GENERATED cordis-surface -->

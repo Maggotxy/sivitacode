@@ -214,7 +214,7 @@
   outline: none;
   background: transparent;
   color: transparent;
-  /* Business blue, not brand-primary: that token resolves to ink in this sheet. */
+  /* The activity alias keeps the editor caret aligned with execution state. */
   caret-color: var(--dsw-alias-state-business-primary);
 }
 
@@ -319,7 +319,8 @@
 }
 
 .trailing {
-  flex: none;
+  flex: 1 1 auto;
+  justify-content: flex-end;
   gap: 12px;
 }
 

@@ -512,6 +512,33 @@ describe('FileSystemSkillProvider', () => {
     })
   })
 
+  it('rescans a non-local filesystem without misreporting host watcher coverage', async () => {
+    const home = await tempDir('skill-remote-refresh')
+    const root = join(home, '.agents/skills')
+    await writeSkill(root, 'remote-skill', 'First remote description')
+    const ctx = new Context()
+    await ctx.plugin(TestFileSystem)
+    const fs = ctx.fs as TestFileSystem
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: true,
+    })
+
+    expect(await ctx.skills.snapshot()).toMatchObject({
+      skills: [{ name: 'remote-skill', description: 'First remote description' }],
+      complete: true,
+    })
+    const firstListCalls = fs.listDirCalls
+    await writeSkill(root, 'remote-skill', 'Second remote description')
+    expect(await ctx.skills.snapshot()).toMatchObject({
+      skills: [{ name: 'remote-skill', description: 'Second remote description' }],
+      complete: true,
+    })
+    expect(fs.listDirCalls).toBeGreaterThan(firstListCalls)
+  })
+
   it('distinguishes transient filesystem entry failures from confirmed disappearance', async () => {
     const home = await tempDir('skill-transient-entry')
     const root = join(home, '.agents/skills')

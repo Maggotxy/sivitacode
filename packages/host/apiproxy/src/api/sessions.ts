@@ -1,3 +1,4 @@
+/* oxlint-disable @stylistic/max-len -- generated-facing request signatures remain one-line declarations. */
 /**
  * sessions domain contract. Method signatures are the source of truth:
  * unary methods take the RpcRequest<P> narrow form and the impl echoes rpcId; everything
@@ -8,6 +9,7 @@ import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ExecutionTargetId } from '@deepseek-ai/dsh-execution-world'
 // The pure-type outlet: api/ is browser-importable, and the package root's
 // cordis Context merge (via dsh-agent) must not enter client aggregates.
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
@@ -207,6 +209,8 @@ export interface SessionSummary {
    * the deployment currently defaults to.
    */
   agentPreset?: string
+  /** Durable execution target used by all filesystem and process capabilities. */
+  executionTarget?: ExecutionTargetId
   /**
    * Projection baseline for this row, with zero log loads: attached sessions
    * read the registry's live watermark cut; cold sessions read the persisted
@@ -258,7 +262,7 @@ export interface SessionsApi {
    * id fails with `agent-preset-not-found`, and a preset whose composition
    * cannot be mounted fails with `agent-preset-invalid`.
    */
-  create(request: RpcRequest<{ workspaceId?: WorkspaceId; cwd?: string; sessionId?: SessionId; agentPreset?: string }>):
+  create(request: RpcRequest<{ workspaceId?: WorkspaceId; cwd?: string; sessionId?: SessionId; agentPreset?: string; executionTarget?: ExecutionTargetId }>):
   Promise<RpcResponse<{ sessionId: SessionId; agentPreset?: string }>>
 
   /**

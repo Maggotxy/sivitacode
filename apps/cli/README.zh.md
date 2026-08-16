@@ -4,6 +4,8 @@
 
 `dsh` 是 DeepSeek Harness 中用于启动 profile 的命令；profile 由多个插件组合包 patch 层按顺序叠加而成，其上再应用用户自己的覆盖配置。[`src/args.ts`](src/args.ts) 负责命令语法，[`src/bin.ts`](src/bin.ts) 只加载选中的运行器。无效命令、来自其他模式的选项、配置错误和启动失败都会以非零状态退出。
 
+同一软件包还发布独立的 `sivitacode` 入口。该入口会在加载共享调度器之前选择 SivitaCode 身份，把 `SIVITACODE_HOME` 或 `~/.sivitacode` 映射到核心数据根目录解析器，并增加 `sivitacode run` 与 `sivitacode acp` 产品别名。`dsh` 入口保留原有命令语法以及 `DSH_HOME` 或 `~/.dsh`；两个入口不会隐式共享用户数据。来源与兼容策略由[产品入口决策](../../.agents/notes/implemented/feature/2026-08-13-sivitacode-product-entry.md)说明。
+
 ## 入口模式
 
 | 命令 | 用途 |
@@ -12,8 +14,11 @@
 | `dsh --profile headless "job"` | 运行一个全新的持久化会话，打印最终答案并退出。 |
 | `dsh web` | `--profile web` 的别名。 |
 | `dsh plugin --profile <name> <pnpm args>` | 通过在 profile 目录中转发给 pnpm 来管理该 profile 的插件。 |
+| `sivitacode web` | 使用 SivitaCode 身份和数据根目录启动 Web profile。 |
+| `sivitacode run "任务"` | 使用 SivitaCode 身份和数据根目录执行一次无头任务。 |
+| `sivitacode acp` | 通过 stdio 提供无头 ACP JSON-RPC，并仅允许部署 allowlist 中的 Inventory 目标。 |
 
-运行命令时所在的目录将作为默认 workspace 根目录。`web` 和 `headless` profile 在首次使用时会从随附模板自动初始化；其他任何 profile 都必须通过 `dsh plugin` 创建。
+运行命令时所在的目录将作为默认 workspace 根目录。`web`、`headless` 和 `acp` profile 在首次使用时会从随附模板自动初始化；其他任何 profile 都必须通过 `dsh plugin` 创建。
 
 ## 应用参数
 
@@ -36,7 +41,7 @@ profile 目录包含一个 `package.json`，其中记录树外插件依赖，以
 - profile 自身的 `cordis.patch.yml`，然后是 home 级的 `$DSH_HOME/cordis.patch.yml`
 - `--patch` 指定的覆盖层
 
-`dsh.profile.bundles` 中列出的组合包先从 dsh 安装目录解析（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-headless`），再从 profile 自身的 `node_modules` 解析；pnpm 会将树外插件安装到该目录。
+`dsh.profile.bundles` 中列出的组合包先从 dsh 安装目录解析（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-headless`、`@deepseek-ai/dsh-acp-app`），再从 profile 自身的 `node_modules` 解析；pnpm 会将树外插件安装到该目录。
 
 使用 `--dump-default-config` 和 `--dump-config` 可在不启动的情况下检查组合后的配置树。
 

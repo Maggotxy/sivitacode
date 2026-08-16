@@ -240,8 +240,10 @@ export interface SkillCatalogSnapshot {
 export interface SkillProviderObservation {
   /** Candidates available from the current provider discovery. */
   readonly candidates: readonly SkillCandidate[]
-  /** Whether discovery completed and these candidates may be cached. */
+  /** Whether discovery completed successfully. */
   readonly complete: boolean
+  /** Whether a complete observation may be reused across later lookups. Defaults to `complete`. */
+  readonly cacheable?: boolean
 }
 
 /** Provider interface for one source of skills, such as local directories or a remote registry. */
@@ -317,11 +319,13 @@ interface RegisteredProvider {
 interface LayerCollectResult {
   entries: IndexedCandidate[]
   cacheable: boolean
+  complete: boolean
 }
 
 interface CollectResult {
   entries: Map<string, IndexedCandidate>
   cacheable: boolean
+  complete: boolean
 }
 
 /** One scope's complete skill-registry contribution. */
@@ -485,7 +489,7 @@ export class SkillRegistry extends Service {
       skills: [...collected.entries.values()]
         .map(entry => toSummary(entry.candidate))
         .sort(compareSkillSummary),
-      complete: collected.cacheable,
+      complete: collected.complete,
     }
   }
 
@@ -527,7 +531,7 @@ export class SkillRegistry extends Service {
       // and only a chain-bearing key makes the next read see the new preset.
       const key = this.collectCacheKey(options.cwd, scopeChainOf(options.scope), revision)
       const cached = this.collectCache.get(key)
-      if (cached !== undefined) return { entries: cached, cacheable: true }
+      if (cached !== undefined) return { entries: cached, cacheable: true, complete: true }
 
       const result = await this.collectFresh(options)
       throwIfAborted(options.signal)
@@ -536,7 +540,7 @@ export class SkillRegistry extends Service {
           attempt += 1
           continue
         }
-        return { entries: result.entries, cacheable: false }
+        return { entries: result.entries, cacheable: false, complete: false }
       }
       if (result.cacheable) {
         this.collectCache.set(key, result.entries)
@@ -557,12 +561,14 @@ export class SkillRegistry extends Service {
     const layers = [this.layers.global, ...this.layers.chainLayers(options.scope)]
     const merged = new Map<string, IndexedCandidate>()
     let cacheable = true
+    let complete = true
     for (const layer of layers) {
       const collected = await this.collectLayer(layer, options)
       if (!collected.cacheable) cacheable = false
+      if (!collected.complete) complete = false
       for (const entry of collected.entries) merged.set(entry.candidate.name, entry)
     }
-    return { entries: merged, cacheable }
+    return { entries: merged, cacheable, complete }
   }
 
   private async collectLayer(layer: SkillLayer, options: SkillLookupOptions): Promise<LayerCollectResult> {
@@ -579,13 +585,14 @@ export class SkillRegistry extends Service {
       seen.add(skill.name)
       result.push(entry)
     }
-    return { entries: result, cacheable: collected.cacheable }
+    return { entries: result, cacheable: collected.cacheable, complete: collected.complete }
   }
 
   private async listLayerCandidates(layer: SkillLayer, options: SkillLookupOptions): Promise<LayerCollectResult> {
     throwIfAborted(options.signal)
     const candidates: IndexedCandidate[] = []
     let cacheable = true
+    let complete = true
     let runtimeOrder = 0
     for (const skill of [...layer.runtime.values()].sort((a, b) => compareCodePoints(a.name, b.name))) {
       candidates.push({
@@ -605,18 +612,24 @@ export class SkillRegistry extends Service {
       } catch (error) {
         if (options.signal?.aborted === true) throw toError(options.signal.reason)
         cacheable = false
+        complete = false
         this.ctx.logger.warn(`skill provider "${provider.name}" skipped: ${errorMessage(error)}`)
       }
       if (output === undefined) continue
       const observation = normalizeProviderObservation(output, provider.name)
-      if (!observation.complete) cacheable = false
+      if (!observation.complete) {
+        cacheable = false
+        complete = false
+      } else if (observation.cacheable === false) {
+        cacheable = false
+      }
       for (const candidate of observation.candidates) {
         validateCandidate(candidate, provider.name)
         candidates.push({ candidate, provider, providerOrder: order, localOrder, layer })
         localOrder += 1
       }
     }
-    return { entries: candidates, cacheable }
+    return { entries: candidates, cacheable, complete }
   }
 
   private invalidateCache(): void {
@@ -671,11 +684,14 @@ function normalizeProviderObservation(output: unknown, providerName: string): Sk
   if (!Array.isArray(observation.candidates) || typeof observation.complete !== 'boolean') {
     throw invalidProviderObservation(providerName)
   }
+  if (observation.cacheable !== undefined && typeof observation.cacheable !== 'boolean') {
+    throw invalidProviderObservation(providerName)
+  }
   return observation as SkillProviderObservation
 }
 
 function invalidProviderObservation(providerName: string): TypeError {
-  return new TypeError(`skill provider "${providerName}" list() must return an array or { candidates, complete } observation`)
+  return new TypeError(`skill provider "${providerName}" list() must return an array or { candidates, complete, cacheable? } observation`)
 }
 
 const RUNTIME_SKILL_PROVIDER: SkillProvider = {

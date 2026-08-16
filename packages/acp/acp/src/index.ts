@@ -1,10 +1,10 @@
 /**
  * Automation-only Agent Client Protocol server over JSON-RPC stdio.
  *
- * The bridge exposes fresh harness sessions to trusted programmatic clients. It
- * carries prompt text, committed assistant text, cancellation, and one-shot
- * permission decisions; presentation and human-interaction features stay with
- * the harness's UI modules.
+ * The bridge exposes persistent harness sessions to trusted programmatic
+ * clients. It carries persistent lifecycle, live text/reasoning/tool updates,
+ * context usage, cancellation, and one-shot permission decisions; richer
+ * presentation and human interaction stay with the harness's UI modules.
  *
  * @module @deepseek-ai/dsh-acp
  */
@@ -25,22 +25,63 @@ import {
   type CancelNotification,
   type InitializeRequest,
   type InitializeResponse,
+  type ForkSessionRequest,
+  type ForkSessionResponse,
+  type ListSessionsRequest,
+  type ListSessionsResponse,
+  type LoadSessionRequest,
+  type LoadSessionResponse,
   type NewSessionRequest,
   type NewSessionResponse,
   type PromptRequest,
   type PromptResponse,
+  type ResumeSessionRequest,
+  type ResumeSessionResponse,
+  type CloseSessionRequest,
+  type DeleteSessionRequest,
+  type DeleteSessionResponse,
   type SessionNotification,
   type StopReason,
   type Stream,
 } from '@agentclientprotocol/sdk'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent, type SessionHeader, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import { SessionQueryError, type SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
+import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
+import { ExecutionTargetId, type ExecutionTargetId as ExecutionTargetIdValue } from '@deepseek-ai/dsh-execution-world'
 // Side-effect type import: declaration-merges the approval waterfall answered below.
 import type {} from '@deepseek-ai/dsh-user-approval'
 import { acpPromptToText, promptHasUnsupportedContent, turnEndToStopReason } from './codec.ts'
+import { paginateSessions } from './list-pagination.ts'
+import {
+  latestContextWindow,
+  parseToolInput,
+  safePresentCall,
+  safePresentResult,
+  streamBlockKey,
+  toolCallFromView,
+  toolResultFromEvent,
+  toolResultFromView,
+  usedTokens,
+  type LiveToolCall,
+} from './live-updates.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * The ACP input stream closed and every Agent owned by that connection
+     * reached its teardown settlement point. A teardown failure is logged
+     * before this notification so a process host can still terminate.
+     * @mode emit
+     */
+    'acp/closed'(): void
+  }
+}
 
 export const name = 'acp'
-/** The bridge creates and owns agents; every other concern is carried by the agent composition. */
+/** ACP extension namespace advertised by SivitaCode and accepted in request metadata. */
+export const SIVITACODE_ACP_META = 'sivitacode.dev'
+/** The bridge owns live agents and reads the shared durable session corpus. */
 export const inject = ['agents']
 
 /**
@@ -72,13 +113,16 @@ export interface AcpConfig {
   provider?: string
   /** Model name for created agents. */
   model?: string
+  /** Exact execution-target ids trusted ACP clients may select; `*` explicitly permits every registered target. */
+  executionTargets?: string[]
   /** Runtime-only transport override; production uses stdio. */
   stream?: Stream
 }
 
-export const Config: Schema<AcpConfig> = Schema.object({
+export const Config: Schema<Omit<AcpConfig, 'stream'>> = Schema.object({
   provider: Schema.string(),
   model: Schema.string(),
+  executionTargets: Schema.array(Schema.string()),
 })
 
 /** Per-session protocol state. */
@@ -95,7 +139,14 @@ interface SessionRecord {
     /** The correlated turn's ending, set at turn/end and settled at whole-agent idle. */
     endReason: TurnEndReason | undefined
   } | undefined
+  /** Blocks that already emitted at least one live delta, keyed by turn/step/index/type. */
+  streamedBlocks: Set<string>
+  /** Exact call-time presentation callbacks and parsed input retained through result settlement. */
+  toolCalls: Map<string, LiveToolCall>
+  /** Latest resolved model context capacity, when the adapter advertises one. */
+  contextWindow: number | undefined
 }
+
 
 /**
  * Mount the automation-only ACP server.
@@ -106,8 +157,13 @@ export function apply(ctx: Context, config: AcpConfig): void {
   // ACP handlers execute outside this plugin's injection scope, so capture the
   // injected service during apply rather than reading it lazily in a callback.
   const agents = ctx.agents
+  const sessionStore = ctx.get('sessions')
+  const sessionQuery: SessionQueryEngine | undefined = ctx.get('sessionQuery')
+  const sessionPersistence = ctx.get('sessionPersistence') as { supportsDeletion?: boolean } | undefined
+  const tools: ToolRuntime | undefined = ctx.get('tools')
   const logger = ctx.logger
   const sessions = new Map<SessionId, SessionRecord>()
+  const executionTargets = permittedExecutionTargets(config.executionTargets)
   let closed = false
   let conn: AgentSideConnection
 
@@ -125,6 +181,103 @@ export function apply(ctx: Context, config: AcpConfig): void {
     const record = sessions.get(sessionId)
     if (record === undefined) throw invalidParams(`unknown session: ${sessionId}`)
     return record
+  }
+
+  const authorizeStoredTarget = (header: SessionHeader): void => {
+    const target = header.executionTarget
+    if (target !== undefined && (executionTargets === undefined
+      || (executionTargets !== '*' && !executionTargets.has(target)))) {
+      throw invalidParams(`execution target '${target}' is not permitted by this ACP deployment`)
+    }
+  }
+
+  const requireSessionQuery = (): SessionQueryEngine => {
+    if (sessionQuery === undefined) throw internalError('persistent session lifecycle is not configured')
+    return sessionQuery
+  }
+
+  const registerHandle = async (handle: Awaited<ReturnType<typeof agents.create>>, operation: string): Promise<SessionRecord> => {
+    if (closed) {
+      await handle.dispose()
+      throw internalError(`connection closed during ${operation}`)
+    }
+    const record: SessionRecord = {
+      agent: handle.agent,
+      dispose: () => handle.dispose(),
+      inflight: undefined,
+      streamedBlocks: new Set(),
+      toolCalls: new Map(),
+      contextWindow: latestContextWindow(handle.agent.session.events),
+    }
+    sessions.set(handle.agent.session.id, record)
+    return record
+  }
+
+  /** Cancel, durably settle, and release one connection-owned live handle. */
+  const closeRecord = async (sessionId: SessionId, record: SessionRecord): Promise<void> => {
+    sessions.delete(sessionId)
+    record.agent.cancel({ kind: 'user' })
+    settlePrompt(record, 'cancelled')
+    await record.agent.whenIdle()
+    if (sessionStore !== undefined) await sessionStore.flush(record.agent.session)
+    const subagents = ctx.get('subagents') as ContinuableDrain | undefined
+    if (subagents !== undefined) await subagents.drainContinuableDescendants([record.agent])
+    await record.dispose()
+  }
+
+  const validateExistingSessionParams = (
+    params: LoadSessionRequest | ResumeSessionRequest | ForkSessionRequest,
+    header: SessionHeader,
+  ): void => {
+    validateWorkspaceParams(params)
+    if (header.cwd !== params.cwd) {
+      throw invalidParams(`cwd does not match session '${header.id}'`)
+    }
+    authorizeStoredTarget(header)
+  }
+
+  const resume = async (
+    params: LoadSessionRequest | ResumeSessionRequest,
+    operation: 'session/load' | 'session/resume',
+  ): Promise<SessionRecord> => {
+    assertOpen()
+    const sessionId = SessionId(params.sessionId)
+    if (sessions.has(sessionId)) throw invalidParams(`session is already active: ${sessionId}`)
+    const snapshot = await requireSessionQuery().readSession(sessionId)
+    validateExistingSessionParams(params, snapshot.session)
+    try {
+      return await registerHandle(await agents.resume({
+        resumeSessionId: sessionId,
+        agentOptions: agentOptions(config),
+      }), operation)
+    } catch (error: unknown) {
+      if (error instanceof RequestError) throw error
+      throw internalError(`${operation} failed: ${errorChain(error)}`)
+    }
+  }
+
+  const replayMessages = async (record: SessionRecord): Promise<void> => {
+    for (const event of record.agent.session.events) {
+      if (event.type !== 'user/message' && event.type !== 'assistant/message') continue
+      const sessionUpdate = event.type === 'user/message' ? 'user_message_chunk' : 'agent_message_chunk'
+      const message = event.type === 'user/message' ? event.data : event.data.message
+      for (const block of message.content) {
+        if (block.type === 'text' && block.text.length > 0) {
+          await conn.sessionUpdate({
+            sessionId: record.agent.session.id,
+            update: { sessionUpdate, content: { type: 'text', text: block.text } },
+          })
+        } else if (block.type === 'image') {
+          await conn.sessionUpdate({
+            sessionId: record.agent.session.id,
+            update: {
+              sessionUpdate,
+              content: { type: 'text', text: `[image attachment ${block.attachment.attachmentId}]` },
+            },
+          })
+        }
+      }
+    }
   }
 
   /** Send a protocol update without letting a disconnected client fail an agent turn. */
@@ -149,35 +302,96 @@ export function apply(ctx: Context, config: AcpConfig): void {
     inflight.reject(internalError(`turn failed: ${reason.error.message}`))
   }
 
-  // Emit only committed assistant text. Raw chunks, reasoning, tools, plans,
-  // titles, and retry markers are presentation or trace data and stay off the
-  // automation wire.
+  // Project the canonical session stream onto ACP live updates. The durable
+  // event stays authoritative; notification failure is contained by notify().
   ctx.on('session/event', (session, event: SessionEvent) => {
     const record = sessions.get(session.header.id)
     if (record === undefined || record.agent.session !== session) return
     try {
-      if (event.type === 'assistant/message') {
-        for (const block of event.data.message.content) {
-          if (block.type === 'text' && block.text.length > 0) {
+      if (event.type === 'request/context') {
+        record.contextWindow = event.data.contextWindow
+      } else if (event.type === 'assistant/chunk') {
+        const { turn, step, chunk } = event.data
+        const messageId = `${session.id}:${turn}:${step}:${chunk.type === 'reasoning-delta' ? 'thought' : 'message'}`
+        if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
+          if (chunk.text.length > 0) {
+            record.streamedBlocks.add(streamBlockKey(turn, step, chunk.index, chunk.type === 'text-delta' ? 'text' : 'reasoning'))
             notify({
-              sessionId: record.agent.session.id,
+              sessionId: session.id,
               update: {
-                sessionUpdate: 'agent_message_chunk',
+                sessionUpdate: chunk.type === 'text-delta' ? 'agent_message_chunk' : 'agent_thought_chunk',
+                content: { type: 'text', text: chunk.text },
+                messageId,
+              },
+            })
+          }
+        } else if (chunk.type === 'block-end') {
+          const block = chunk.block
+          if ((block.type === 'text' || block.type === 'reasoning') && block.text.length > 0
+            && !record.streamedBlocks.has(streamBlockKey(turn, step, chunk.index, block.type))) {
+            notify({
+              sessionId: session.id,
+              update: {
+                sessionUpdate: block.type === 'text' ? 'agent_message_chunk' : 'agent_thought_chunk',
                 content: { type: 'text', text: block.text },
+                messageId: `${session.id}:${turn}:${step}:${block.type === 'text' ? 'message' : 'thought'}`,
               },
             })
           } else if (block.type === 'image') {
             notify({
-              sessionId: record.agent.session.id,
+              sessionId: session.id,
               update: {
                 sessionUpdate: 'agent_message_chunk',
-                content: {
-                  type: 'text',
-                  text: `[image attachment ${block.attachment.attachmentId}]`,
-                },
+                content: { type: 'text', text: `[image attachment ${block.attachment.attachmentId}]` },
+                messageId: `${session.id}:${turn}:${step}:message`,
               },
             })
           }
+        } else if (chunk.type === 'usage' && record.contextWindow !== undefined) {
+          notify({
+            sessionId: session.id,
+            update: {
+              sessionUpdate: 'usage_update',
+              size: record.contextWindow,
+              used: usedTokens(chunk.usage),
+            },
+          })
+        }
+      } else if (event.type === 'tool/call') {
+        const args = parseToolInput(event.data.arguments)
+        const definition = tools?.get(event.data.name, record.agent)
+        const view = safePresentCall(definition, args)
+        record.toolCalls.set(event.data.callId, {
+          name: event.data.name,
+          args,
+          presentResult: definition?.presentResult === undefined
+            ? undefined
+            : (toolArgs, result) => definition.presentResult?.(toolArgs, result),
+        })
+        notify({
+          sessionId: session.id,
+          update: {
+            sessionUpdate: 'tool_call',
+            ...toolCallFromView(event.data.callId, event.data.name, args, view),
+          },
+        })
+      } else if (event.type === 'tool/result') {
+        const callId = event.data.message.source.callId
+        const tracked = record.toolCalls.get(callId)
+        record.toolCalls.delete(callId)
+        const result = toolResultFromEvent(event)
+        const view = safePresentResult(tracked, result)
+        notify({
+          sessionId: session.id,
+          update: {
+            sessionUpdate: 'tool_call_update',
+            ...toolResultFromView(callId, result, view),
+          },
+        })
+      } else if (event.type === 'step/end') {
+        const prefix = `${event.data.turn}:${event.data.step}:`
+        for (const key of record.streamedBlocks) {
+          if (key.startsWith(prefix)) record.streamedBlocks.delete(key)
         }
       }
     } finally {
@@ -236,9 +450,22 @@ export function apply(ctx: Context, config: AcpConfig): void {
         // the latest supported" both resolve to this server's one version.
         return Promise.resolve({
           protocolVersion: PROTOCOL_VERSION,
-          agentInfo: { name: 'deepseek-harness-acp', version: '0.0.1' },
+          agentInfo: { name: 'sivitacode-acp', version: '0.1.0-rc.5' },
           agentCapabilities: {
+            loadSession: sessionQuery !== undefined,
             promptCapabilities: { image: false, audio: false, embeddedContext: false },
+            sessionCapabilities: sessionQuery === undefined
+              ? { close: {} }
+              : {
+                close: {},
+                fork: {},
+                list: {},
+                resume: {},
+                ...(sessionPersistence?.supportsDeletion === true ? { delete: {} } : {}),
+              },
+            ...(executionTargets === undefined ? {} : {
+              _meta: { [SIVITACODE_ACP_META]: { executionTarget: true } },
+            }),
           },
           authMethods: [],
         })
@@ -251,27 +478,145 @@ export function apply(ctx: Context, config: AcpConfig): void {
       async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
         assertOpen()
         validateSessionParams(params)
+        const executionTarget = executionTargetOf(params, executionTargets)
         const sessionId = SessionId(randomUUID())
         // No preset composition: the ACP bundle keeps the model-facing rows in
         // the host plane, so this agent reads them from the global layer. A
         // deployment that configures a roster has to join one here first
         // (@deepseek-ai/dsh-agent-presets README, "Composing a child agent").
+        let handle
+        try {
+          handle = await agents.create({
+            sessionId,
+            meta: {
+              cwd: params.cwd,
+              ...(executionTarget === undefined ? {} : { executionTarget }),
+            },
+            agentOptions: agentOptions(config),
+          })
+        } catch (error: unknown) {
+          if (executionTarget === undefined) throw error
+          throw internalError(`execution target '${executionTarget}' could not be mounted: ${errorChain(error)}`)
+        }
+        await registerHandle(handle, 'session/new')
+        return {
+          sessionId,
+          ...(executionTarget === undefined ? {} : {
+            _meta: { [SIVITACODE_ACP_META]: { executionTarget } },
+          }),
+        }
+      },
+
+      async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
+        const record = await resume(params, 'session/load')
+        try {
+          await replayMessages(record)
+          return {}
+        } catch (error: unknown) {
+          sessions.delete(record.agent.session.id)
+          await record.dispose()
+          throw internalError(`session/load history replay failed: ${errorChain(error)}`)
+        }
+      },
+
+      async resumeSession(params: ResumeSessionRequest): Promise<ResumeSessionResponse> {
+        await resume(params, 'session/resume')
+        return {}
+      },
+
+      async listSessions(params: ListSessionsRequest): Promise<ListSessionsResponse> {
+        assertOpen()
+        if (params.cwd !== undefined && params.cwd !== null && !isAbsolute(params.cwd)) {
+          throw invalidParams(`cwd must be an absolute path: ${params.cwd}`)
+        }
+        const query = requireSessionQuery()
+        const filtered = (await query.listSessions())
+          .filter((record): record is typeof record & { header: SessionHeader & { cwd: string } } => record.header.cwd !== undefined)
+          .filter(record => params.cwd === undefined || params.cwd === null || record.header.cwd === params.cwd)
+          .filter((record) => {
+            const target = record.header.executionTarget
+            return target === undefined || executionTargets === '*'
+              || (executionTargets !== undefined && executionTargets.has(target))
+          })
+        let page: ReturnType<typeof paginateSessions<(typeof filtered)[number]>>
+        try {
+          page = paginateSessions(filtered, params.cursor, params.cwd)
+        } catch (error: unknown) {
+          throw invalidParams(error instanceof Error ? error.message : 'invalid session/list cursor')
+        }
+        const records = page.records
+        const titles = await query.readTitleSnapshots(records.map(record => record.header.id))
+        return {
+          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+          sessions: records.map((record, index) => {
+            const title = titles[index]
+            return {
+              sessionId: record.header.id,
+              cwd: record.header.cwd,
+              updatedAt: new Date(record.header.createdAt).toISOString(),
+              ...(title?.status === 'fulfilled' && title.value.title !== undefined
+                ? { title: title.value.title.title, updatedAt: new Date(title.value.title.updatedAt).toISOString() }
+                : {}),
+              ...(record.header.executionTarget === undefined ? {} : {
+                _meta: { [SIVITACODE_ACP_META]: { executionTarget: record.header.executionTarget } },
+              }),
+            }
+          }),
+        }
+      },
+
+      async deleteSession(params: DeleteSessionRequest): Promise<DeleteSessionResponse> {
+        assertOpen()
+        if (sessionPersistence?.supportsDeletion !== true) {
+          throw internalError('persistent session deletion is not configured')
+        }
+        const sessionId = SessionId(params.sessionId)
+        const record = sessions.get(sessionId)
+        if (record !== undefined) await closeRecord(sessionId, record)
+        try {
+          await requireSessionQuery().deleteSession(sessionId)
+          return {}
+        } catch (error: unknown) {
+          if (error instanceof SessionQueryError
+            && (error.code === 'SESSION_QUERY_SESSION_NOT_FOUND' || error.code === 'SESSION_QUERY_SOURCE_CONFLICT')) {
+            throw invalidParams(error.message)
+          }
+          throw internalError(`session/delete failed: ${errorChain(error)}`)
+        }
+      },
+
+      async unstable_forkSession(params: ForkSessionRequest): Promise<ForkSessionResponse> {
+        assertOpen()
+        const parentId = SessionId(params.sessionId)
+        const snapshot = await requireSessionQuery().readSession(parentId)
+        validateExistingSessionParams(params, snapshot.session)
+        const sessionId = SessionId(randomUUID())
         const handle = await agents.create({
           sessionId,
-          meta: { cwd: params.cwd },
+          seed: snapshot.events,
+          meta: {
+            ...(snapshot.session.cwd === undefined ? {} : { cwd: snapshot.session.cwd }),
+            parentSession: parentId,
+            seedLength: snapshot.events.length,
+            ...(snapshot.session.executionTarget === undefined ? {} : { executionTarget: snapshot.session.executionTarget }),
+            ...(snapshot.session.agentPreset === undefined ? {} : { agentPreset: snapshot.session.agentPreset }),
+          },
           agentOptions: agentOptions(config),
         })
-        /* v8 ignore next 4 -- a real stdio close can race an in-flight create. */
-        if (closed) {
-          await handle.dispose()
-          throw internalError('connection closed during session/new')
+        await registerHandle(handle, 'session/fork')
+        return {
+          sessionId,
+          ...(snapshot.session.executionTarget === undefined ? {} : {
+            _meta: { [SIVITACODE_ACP_META]: { executionTarget: snapshot.session.executionTarget } },
+          }),
         }
-        sessions.set(sessionId, {
-          agent: handle.agent,
-          dispose: () => handle.dispose(),
-          inflight: undefined,
-        })
-        return { sessionId }
+      },
+
+      async closeSession(params: CloseSessionRequest): Promise<void> {
+        assertOpen()
+        const sessionId = SessionId(params.sessionId)
+        const record = requireSession(sessionId)
+        await closeRecord(sessionId, record)
       },
 
       async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -405,9 +750,13 @@ export function apply(ctx: Context, config: AcpConfig): void {
     .catch((error: unknown) => {
       logger.warn(`acp: connection closed with an error: ${String(error)}`)
     })
-    .then(quiesce)
-    .catch((error: unknown) => {
-      logger.warn(`acp: connection-close teardown failed: ${String(error)}`)
+    .then(async () => {
+      try {
+        await quiesce()
+      } catch (error: unknown) {
+        logger.warn(`acp: connection-close teardown failed: ${String(error)}`)
+      }
+      ctx.emit('acp/closed')
     })
   /* v8 ignore stop */
 
@@ -427,10 +776,58 @@ function agentOptions(config: AcpConfig): { provider?: string; model?: string } 
 }
 
 /** Reject session features outside the automation contract. */
-function validateSessionParams(params: NewSessionRequest): void {
+function validateWorkspaceParams(params: {
+  cwd: string
+  additionalDirectories?: string[]
+  mcpServers?: unknown[]
+}): void {
   if (!isAbsolute(params.cwd)) throw invalidParams(`cwd must be an absolute path: ${params.cwd}`)
   if (params.additionalDirectories !== undefined && params.additionalDirectories.length > 0) {
     throw invalidParams('additionalDirectories is not supported')
   }
-  if (params.mcpServers.length > 0) throw invalidParams('mcpServers is not supported')
+  if (params.mcpServers !== undefined && params.mcpServers.length > 0) throw invalidParams('mcpServers is not supported')
+}
+
+/** Reject session features outside the automation contract. */
+function validateSessionParams(params: NewSessionRequest): void {
+  validateWorkspaceParams(params)
+}
+
+/** Read the optional SivitaCode target selector without interpreting unrelated ACP metadata. */
+function executionTargetOf(
+  params: NewSessionRequest,
+  permitted: ReadonlySet<string> | '*' | undefined,
+): ExecutionTargetIdValue | undefined {
+  const extension = params._meta?.[SIVITACODE_ACP_META]
+  if (extension === undefined) return undefined
+  if (typeof extension !== 'object' || extension === null || Array.isArray(extension)) {
+    throw invalidParams(`_meta[${JSON.stringify(SIVITACODE_ACP_META)}] must be an object`)
+  }
+  const target = (extension as Record<string, unknown>).executionTarget
+  if (target === undefined) return undefined
+  if (typeof target !== 'string' || target.length === 0 || target.trim() !== target) {
+    throw invalidParams(`_meta[${JSON.stringify(SIVITACODE_ACP_META)}].executionTarget must be a non-empty unpadded string`)
+  }
+  if (permitted === undefined || (permitted !== '*' && !permitted.has(target))) {
+    throw invalidParams(`execution target '${target}' is not permitted by this ACP deployment`)
+  }
+  return ExecutionTargetId(target)
+}
+
+/** Validate and detach the deployment-owned target allowlist once at activation. */
+function permittedExecutionTargets(values: readonly string[] | undefined): ReadonlySet<string> | '*' | undefined {
+  if (values === undefined || values.length === 0) return undefined
+  if (values.includes('*')) {
+    if (values.length !== 1) throw new Error('acp executionTargets: wildcard must be the only entry')
+    return '*'
+  }
+  const result = new Set<string>()
+  for (const value of values) {
+    if (value.length === 0 || value.trim() !== value) {
+      throw new Error('acp executionTargets: entries must be non-empty unpadded strings')
+    }
+    if (result.has(value)) throw new Error(`acp executionTargets: duplicate target '${value}'`)
+    result.add(value)
+  }
+  return result
 }

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-14-sivitacode-trusted-reverse-proxy.md
+2026-08-14-sivitacode-trusted-reverse-proxy.md: 7254f4a2d919dbbb58dfb824bebb52e66f1a9f57
+2026-08-14-sivitacode-trusted-reverse-proxy.zh.md: 96a784b2214e7eabc4da1c1f6b61fc51e76ca1dc

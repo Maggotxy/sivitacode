@@ -11,7 +11,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import { internals, provideCmdline } from '@deepseek-ai/dsh-cmdline'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, WEB_STARTUP_SERVICE, type WebStartupValues } from '../src/startup.ts'
 
 /** What one fixture boot observed. */
@@ -27,6 +27,7 @@ afterEach(async () => {
   for (const dispose of disposers.splice(0)) await dispose()
   internals.stdout = process.stdout
   internals.stderr = process.stderr
+  vi.unstubAllEnvs()
 })
 
 /**
@@ -129,11 +130,21 @@ describe('web command-line provider', () => {
     expect(observed.exits).toEqual([1])
   })
 
-  it('rejects the intentionally unsupported all-interfaces host before the consumer activates', async () => {
+  it('rejects all-interfaces binding without SivitaCode authentication', async () => {
     const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
-    expect(observed.out).toContain('--host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
+    expect(observed.out).toContain('--host 0.0.0.0 requires SivitaCode Web authentication')
     expect(values).toBeUndefined()
     expect(observed.readerConfig).toBeUndefined()
     expect(observed.exits).toEqual([1])
+  })
+
+  it('allows SivitaCode all-interfaces binding when Web authentication is configured', async () => {
+    vi.stubEnv('SIVITACODE_PRODUCT', '1')
+    vi.stubEnv('SIVITACODE_WEB_PASSWORD', 'correct horse battery staple')
+    vi.stubEnv('SIVITACODE_WEB_PUBLIC_ORIGIN', 'https://code.example.com')
+    vi.stubEnv('SIVITACODE_WEB_TRUSTED_PROXY_CIDRS', '127.0.0.1/32')
+    const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
+    expect(values).toEqual({ host: '0.0.0.0', trustedHosts: [] })
+    expect(observed.exits).toEqual([])
   })
 })

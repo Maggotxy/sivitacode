@@ -4,6 +4,8 @@
 
 模型侧 `bash` 工具，注册在 `ctx.shell` 执行器 seam 上。前台执行始终位于该 seam 之后；后台进程句柄会注册到通用 `ctx.jobs` 运行时，并通过 `job_output`、`job_list` 和 `job_kill` 控制；这些工具由 `@deepseek-ai/dsh-tool-jobs` 提供。
 
+携带持久 `executionTarget` 的会话会为前台与后台启动选择该 Agent 确切作用域内挂载的 shell。Inventory 会在目标文件系统与 subprocess 适配器就绪后提供目标侧 Bash 执行器；没有目标的会话继续使用部署的宿主执行器。目标执行器未公开沙箱策略时会拒绝 `sandbox_permissions`，因此控制平面的升权绝不会被错误套用到 SSH 或 OCI 执行。
+
 需要加载执行器 Service Provider（例如 `@deepseek-ai/dsh-bash-local`）与 [`@deepseek-ai/dsh-shell-env`](../shell-env/README.md) 注册表；在每个注入服务就绪之前，插件会保持等待状态（`inject: ['tools', 'bash', 'systemPrompt', 'bashEnv']`）。工具约定是 bash 方言——请挂载能解析 bash 的执行器。
 
 包根只公开 Cordis 插件约定（`name`、`inject`、`Config`、`apply`）；结果渲染和后台进程适配仍保留在包内部。

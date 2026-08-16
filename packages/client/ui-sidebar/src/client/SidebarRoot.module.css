@@ -24,7 +24,7 @@
 
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
-   the whale's box (24px to the 24-wide whale glyph itself). */
+   the product mark's box (24px to the 24-wide glyph itself). */
 .root.collapsed {
   padding: 18px 10px 6px;
 }
@@ -120,7 +120,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: inherit;
+  color: var(--dsw-alias-brand-text);
   cursor: pointer;
 }
 
@@ -148,7 +148,7 @@
   height: 36px;
 }
 
-/* Rail logo swap: collapsed, the toggle rests as the whale mark (brand ink,
+/* Rail logo swap: collapsed, the toggle rests as the SivitaCode mark (brand ink,
    no hover circle) and hovering reveals the panel icon — the expand
    affordance (figma sidebar-hover flow). Expanded it is a plain panel icon. */
 .collapsed .toggle .panelIcon {
@@ -159,14 +159,14 @@
   display: inline;
 }
 
-.collapsed .toggle:hover .railFish {
+.collapsed .toggle:hover .railMark {
   display: none;
 }
 
 /* Rail icons ride the primary ink (figma rail spec); expanded keeps the
    secondary icon-button ink. */
 .collapsed .iconButton {
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-brand-primary);
 }
 
 /* New Session: 38px bar, 12px radius (figma 133:7634 geometry, squared-off

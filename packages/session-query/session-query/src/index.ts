@@ -136,6 +136,15 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
+   * Permanently delete one inactive persisted session.
+   * @param sessionId - exact persisted identity.
+   * @param signal - optional cancellation before destructive storage work starts.
+   */
+  deleteSession(sessionId: SessionId, signal?: AbortSignal): Promise<void> {
+    return this._corpus.deleteSession(sessionId, signal)
+  }
+
+  /**
    * Read and replay-validate one complete logical session log without making it live.
    * @param sessionId - live or persisted session id to read.
    * @returns cloned header and complete raw event log from one observation.

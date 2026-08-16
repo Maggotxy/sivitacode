@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { exactEditState } from './rescope-vendor.ts'
+import { exactEditState, genericRewriteSkipped } from './rescope-vendor.ts'
 
 const ANCHOR = '\n## Sync procedure'
 const INSERTED = `\n15. **rescope**: one log entry.\n${ANCHOR}`
@@ -37,5 +37,15 @@ describe('exactEditState', () => {
     // A moved or partially applied site: neither state is complete.
     expect(exactEditState('a = 1\nb = 2\n', 'a = 1', 'b = 2', 1)).toBe('invalid')
     expect(exactEditState('x\n', 'a = 1', 'b = 2', 1)).toBe('invalid')
+  })
+})
+
+describe('genericRewriteSkipped', () => {
+  it('preserves Cordis protocol and locale identifiers without exempting other vendor names', () => {
+    expect(genericRewriteSkipped('packages/extensions/ui-cordis/src/client/locales.ts', 'cordis')).toBe(true)
+    expect(genericRewriteSkipped('packages/extensions/cordis-host-runner/src/types.ts', 'cordis')).toBe(true)
+    expect(genericRewriteSkipped('docs/event-producer-consumer.md', 'cordis')).toBe(true)
+    expect(genericRewriteSkipped('packages/extensions/ui-cordis/src/client/locales.ts', 'cosmokit')).toBe(false)
+    expect(genericRewriteSkipped('packages/core/session/src/index.ts', 'cordis')).toBe(false)
   })
 })

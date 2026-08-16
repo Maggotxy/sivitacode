@@ -122,6 +122,36 @@ describe('web-app runtime glue', () => {
     await ctx.fiber.dispose()
   })
 
+  it('uses the public origin for browser-facing runtime values and readiness', async () => {
+    stageDist()
+    const ctx = new Context()
+    ctx.provide('webServer', fakeHttpServer('0.0.0.0').server)
+    const contributions: BashContribution[] = []
+    ctx.provide('shellEnv', {
+      register: (contribution: BashContribution) => {
+        contributions.push(contribution)
+        return () => {}
+      },
+    } as never)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    apply(ctx, new Config({
+      printUrl: true,
+      surfaceContext: true,
+      trustedHosts: ['code.example.com'],
+      publicOrigin: 'https://code.example.com',
+    }))
+    await ctx.plugin(SystemPrompt, { persona: '' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(log).toHaveBeenCalledWith('dsh web: https://code.example.com')
+    const assembly = await ctx.systemPrompt.assemble()
+    expect(assembly.sections.find(entry => entry.name === 'app:web-surface')?.text)
+      .toContain('https://code.example.com')
+    expect(contributions.find(entry => entry.name === 'web-runtime')?.resolve())
+      .toEqual({ DSH_WEB_URL: 'https://code.example.com' })
+    await ctx.fiber.dispose()
+  })
+
   it('skips the surface context when disabled (the one-shot layer): no prompt section, no bash variables', async () => {
     stageDist()
     const ctx = new Context()

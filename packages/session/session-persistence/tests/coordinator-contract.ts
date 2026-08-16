@@ -242,6 +242,26 @@ export function runCoordinatorContract(name: string, makeFixture: () => Promise<
       }
     })
 
+    it('refuses deletion while a live owner exists and permits it after retirement', async () => {
+      const fix = await makeFixture()
+      const { ctx, fiber } = await freshCtx(fix)
+      let session!: Session
+      const owner = await ctx.plugin(Object.assign((inner: Context) => {
+        session = inner.sessions.create(SessionId('delete-live-owner'), { meta: { cwd: WORK } })
+      }, { inject: ['sessions'] }))
+      try {
+        send(session, oneTurnLog())
+        await ctx.sessions.flush(session)
+        await expect(ctx.sessionPersistence.delete(session.id)).rejects.toThrow(/while it is live/)
+        await owner.dispose()
+        await expect(ctx.sessionPersistence.delete(session.id)).resolves.toBe(true)
+        await expect(ctx.sessionPersistence.load(session.id)).rejects.toThrow(/not found/)
+      } finally {
+        await fiber.dispose()
+        await fix.cleanup()
+      }
+    })
+
     it('rejects crash-repair load while a live session owns the persisted prefix', async () => {
       const fix = await makeFixture()
       const { ctx, fiber } = await freshCtx(fix)

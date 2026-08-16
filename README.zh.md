@@ -1,61 +1,70 @@
-# DeepSeek Harness
+# SivitaCode
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+SivitaCode 是面向 Linux 与 macOS 的 Web 优先、无头优先编程 Agent。项目基于 MIT 许可的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 独立开发，保留上游 `dsh` 兼容命令，并增加产品自有的 `sivitacode` 命令和隔离的数据目录。
 
 它采用**一切皆插件**的架构，并由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://github.com/cordiverse/paper)。
 
-## 开发者预览
+## 状态
 
-DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
+SivitaCode 目前处于开发者预览阶段。首次稳定版本发布前，上游核心和 SivitaCode 扩展都可能产生破坏兼容性的变化，因此部署时应固定具体版本。
 
 ## 运行
 
-### 通过 `npm` 运行
+### 安装已发布的服务器 release
 
-安装 `Node.js`，然后运行：
+受支持的公开分发方式是适用于 `linux-x64`、`linux-arm64`、`darwin-x64` 或 `darwin-arm64` 的已验证 GitHub Release 归档。目标设备需要 Node.js 22.19 或更高版本，但不需要源码 checkout、pnpm、编译器或 npm registry。请从同一个 [release](https://github.com/Maggotxy/sivitacode/releases) 下载归档、相邻的 `.sha256` 和 `install-sivitacode.mjs`，再执行安装：
 
 ```sh
-npx @deepseek-ai/dsh web
+sudo node install-sivitacode.mjs install \
+  --root /opt/sivitacode \
+  --archive ./sivitacode-server-0.1.0-rc.5-linux-x64.tar.gz \
+  --checksum ./sivitacode-server-0.1.0-rc.5-linux-x64.tar.gz.sha256
+node /opt/sivitacode/current/node_modules/@deepseek-ai/dsh/lib/sivitacode.js web
 ```
 
-该命令会启动 Web UI，默认地址为 `http://127.0.0.1:3080`。详见 [Web UI 指南](docs/user/guide/index.md)。
+安装器会在原子切换 `current` 前验证外层摘要、所有归档路径、逐文件 manifest 和已安装 CLI 冒烟测试。[部署参考](deploy/README.md)介绍 systemd、HTTPS 反向代理、升级、回滚、SSH 目标与 rootless 容器目标。
 
 ### 从源码运行
 
-如需从仓库源码运行：
+安装 Node.js 22.19 或更高版本以及 pnpm 11.7，然后运行：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
+corepack pnpm install
+corepack pnpm run build
+corepack pnpm sivitacode web
 ```
 
-## 社区与支持
+该命令默认在 `http://127.0.0.1:3080` 启动 Web UI。仅监听回环地址是有意的安全默认值；私有远程访问可使用 SSH 隧道，公网访问则应部署下文的带认证反向代理配置。
 
-- 欢迎通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
-- 为你的插件仓库添加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) 话题，便于被发现。
-- 欢迎加入 DeepSeek Harness 企微群：扫码添加企微小助手并填写入群问卷，完成后小助手会邀请你入群。
+如需在同一服务器上通过 HTTPS 反向代理访问，应让 SivitaCode 位于代理之后，并明确配置公网 authority：
 
-<table>
-  <thead>
-    <tr>
-      <th align="center">企微小助手</th>
-      <th align="center">入群问卷</th>
-      <th align="center">微信公众号</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><img src="assets/community-wecom-assistant.png" alt="DeepSeek Harness 企微小助手二维码" width="180" height="180"></td>
-      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="assets/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
-      <td align="center"><img src="assets/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
-    </tr>
-  </tbody>
-</table>
+```sh
+SIVITACODE_WEB_PASSWORD='use a long unique password' \
+SIVITACODE_WEB_ADMIN_USERNAME='admin' \
+SIVITACODE_WEB_PUBLIC_ORIGIN='https://code.example.com' \
+SIVITACODE_WEB_TRUSTED_PROXY_CIDRS='127.0.0.1/32' \
+  corepack pnpm sivitacode web --host 0.0.0.0 --trusted-host code.example.com
+```
+
+由反向代理终止 TLS，并把 HTTP 和 WebSocket upgrade 转发到 3080 端口。代理必须重写 `Host`、`X-Forwarded-Host`、`X-Forwarded-Proto` 与 `X-Forwarded-For`；只有直接对端属于 `SIVITACODE_WEB_TRUSTED_PROXY_CIDRS` 时，SivitaCode 才信任这些字段。这里应填写代理真实使用的来源 CIDR，而非客户端网段。公网部署不得直接暴露 3080 端口，也不得设置 `SIVITACODE_WEB_INSECURE_COOKIE`。
+
+### 执行一次无头任务
+
+```sh
+corepack pnpm sivitacode run "inspect this repository and run its tests"
+```
+
+SivitaCode 将 profile、设置、凭据和会话保存在 `~/.sivitacode`。如需移动根目录，应在启动环境中设置 `SIVITACODE_HOME`。兼容命令 `dsh` 仍使用 `DSH_HOME` 或 `~/.dsh`，两个产品不会隐式共享数据。
+
+## 架构
+
+Web 和无头模式共用一个插件组合的 Agent 核心。文件系统、Shell、终端、后台任务、LSP、MCP stdio、会话、工具、LLM 和子 Agent 共用所选执行世界。Web Inventory 可以在本机、精确固定主机密钥的 SSH 服务器或 rootless Docker/Podman 容器上打开会话，且基于子进程的工具不会绕回控制机。部署计划会保留目标 revision、要求独立生产审批、限制输出，并通过同一受管子进程 provider 仅执行一次。安全 Git 工作树创建在所选目标 workspace 内。
+
+GitHub Releases 是部署权威。npm 发布保持可选，因为在新 scope 下分发完整内部 `@deepseek-ai/dsh-*` 依赖图会弱化来源信息，并形成长期上游合并成本；未来的 `sivitacode` npm 包可以提供验证摘要的启动器，但不会替代 release 归档。
+
+本仓库有意保留上游内部 `@deepseek-ai/dsh-*` 包名。这能清晰保留来源、避免把上游成果描述为 SivitaCode 原创，并使上游安全更新能够被选择性审查。SivitaCode 自研功能使用独立产品身份，并在文档中明确说明。
 
 ## 参与贡献
 
@@ -67,8 +76,8 @@ pnpm dsh web
 
 面向 agent：请遵循 [AGENTS.md](AGENTS.md)。
 
-## 许可证
+## 署名与许可证
 
-[MIT](LICENSE)
+SivitaCode 基于 DeepSeek Harness，并依据 [MIT 许可证](LICENSE)发布。项目保留 DeepSeek 原始版权与许可声明。发行说明和源码历史必须标识 SivitaCode 修改，不得把上游核心宣传为 SivitaCode 原创成果。
 
 第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

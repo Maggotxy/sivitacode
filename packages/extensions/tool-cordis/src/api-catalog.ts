@@ -82,6 +82,108 @@ export interface TypeApiEntry {
 /** Every harness `ctx.<key>` service, sorted by key. */
 export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
+    key: 'accessControl',
+    summary: 'Persistent access-control service.',
+    description: 'Persistent access-control service.',
+    methods: [
+      {
+        signature: 'runAs<T>(actor: AccessActor, operation: () => T): T',
+        description: 'Run an operation with a trusted request-local actor.',
+        parameters: [{ name: 'actor', description: 'Verified actor.' }, { name: 'operation', description: 'Work to scope.' }],
+        returns: 'The operation result.',
+      },
+      {
+        signature: 'currentActor(): AccessActor | undefined',
+        description: 'Current trusted actor.',
+        parameters: [],
+        returns: 'Actor or undefined outside an authenticated request.',
+      },
+      {
+        signature: 'bindRequest(request: object, actor: AccessActor): void',
+        description: 'Associate a verified actor with one transport request.',
+        parameters: [{ name: 'request', description: 'Transport-owned object.' }, { name: 'actor', description: 'Verified actor.' }],
+      },
+      {
+        signature: 'actorForRequest(request: object): AccessActor | undefined',
+        description: 'Retrieve an attached actor.',
+        parameters: [{ name: 'request', description: 'Transport-owned object.' }],
+        returns: 'Attached actor, if any.',
+      },
+      {
+        signature: 'async authorize(permission: AccessPermission, detail?: string): Promise<AccessActor>',
+        description: 'Require a permission.',
+        parameters: [{ name: 'permission', description: 'Required operation permission.' }, { name: 'detail', description: 'Audited operation label.' }],
+        returns: 'The authorized actor.',
+      },
+      {
+        signature: 'permits(actor: AccessActor, permission: AccessPermission): boolean',
+        description: 'Test whether an authenticated actor\'s global roles include a permission.',
+        parameters: [{ name: 'actor', description: 'Trusted actor.' }, { name: 'permission', description: 'Required permission.' }],
+        returns: 'Whether at least one role includes it.',
+      },
+      {
+        signature: 'permissionIncludes(ceiling: AccessPermission, required: AccessPermission): boolean',
+        description: 'Test whether one permission includes another in the built-in ordering.',
+        parameters: [{ name: 'ceiling', description: 'Granted maximum permission.' }, { name: 'required', description: 'Requested operation permission.' }],
+        returns: 'Whether the ceiling includes the request.',
+      },
+      {
+        signature: 'async login(username: string, password: string, clientAddress?: string): Promise<{ token: string; actor: AccessActor }>',
+        description: 'Create a durable session.',
+        parameters: [{ name: 'username', description: 'Account name.' }, { name: 'password', description: 'Plain credential to verify.' }, { name: 'clientAddress', description: 'Audited client address.' }],
+        returns: 'Cookie token and actor.',
+      },
+      {
+        signature: 'async authenticate(token: string): Promise<AccessActor | undefined>',
+        description: 'Resolve and refresh a session.',
+        parameters: [{ name: 'token', description: 'Cookie token.' }],
+        returns: 'Verified actor, or undefined.',
+      },
+      {
+        signature: 'async logout(token: string, clientAddress?: string): Promise<void>',
+        description: 'Revoke one session.',
+        parameters: [{ name: 'token', description: 'Cookie token.' }, { name: 'clientAddress', description: 'Audited client address.' }],
+        returns: 'Resolution after revocation and audit.',
+      },
+      {
+        signature: '@Remote(\'listUsers\') async listUsers(): Promise<AccessUserView[]>',
+        description: 'List users.',
+        parameters: [],
+        returns: 'Public user projections.',
+      },
+      {
+        signature: '@Remote(\'createUser\') async createUser(username: string, password: string, roles: readonly AccessRole[]): Promise<AccessUserView>',
+        description: 'Create a user.',
+        parameters: [{ name: 'username', description: 'Unique account name.' }, { name: 'password', description: 'Initial password.' }, { name: 'roles', description: 'Built-in roles.' }],
+        returns: 'Created public projection.',
+      },
+      {
+        signature: '@Remote(\'setUserDisabled\') async setUserDisabled(userId: UserIdBrand, disabled: boolean): Promise<void>',
+        description: 'Change disabled state.',
+        parameters: [{ name: 'userId', description: 'Subject user.' }, { name: 'disabled', description: 'New disabled state.' }],
+        returns: 'Resolution after persistence and audit.',
+      },
+      {
+        signature: '@Remote(\'setUserRoles\') async setUserRoles(userId: UserIdBrand, roles: readonly AccessRole[]): Promise<AccessUserView>',
+        description: 'Replace one user\'s built-in roles and revoke their active sessions.',
+        parameters: [{ name: 'userId', description: 'Subject user.' }, { name: 'roles', description: 'Non-empty unique role set.' }],
+        returns: 'Updated public projection.',
+      },
+      {
+        signature: '@Remote(\'recentAudit\') async recentAudit(limit: number): Promise<AccessAuditEntry[]>',
+        description: 'Read audit records.',
+        parameters: [{ name: 'limit', description: 'Maximum entries.' }],
+        returns: 'Newest entries first.',
+      },
+      {
+        signature: 'async audit( action: string, outcome: AccessAuditEntry[\'outcome\'], fields: AccessAuditFields = {}, ): Promise<void>',
+        description: 'Append a trusted product-domain audit event.',
+        parameters: [{ name: 'action', description: 'Stable operation name.' }, { name: 'outcome', description: 'Operation outcome.' }, { name: 'fields', description: 'Optional actor, subject, client, and detail facts.' }],
+        returns: 'Resolution after durable append.',
+      },
+    ],
+  },
+  {
     key: 'agentDefaultModel',
     summary: 'Owns the default model selection independently of any Host or transport.',
     description: 'Owns the default model selection independently of any Host or transport. The composition entry remains usable without a settings provider; when one is mounted, its user layer is read live.',
@@ -526,6 +628,138 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'deploymentInventory',
+    summary: 'Persistent deployment target inventory.',
+    description: 'Persistent deployment target inventory.',
+    methods: [
+      {
+        signature: 'route(runtimeContext: Context, targetId: ExecutionTargetId, cwd: string | undefined): ExecutionWorldRoute',
+        description: 'Resolve an enabled inventory target into isolated Agent capability realms.',
+        parameters: [{ name: 'runtimeContext', description: 'AgentLoop runtime Context carrying the complete capability graph.' }, { name: 'targetId', description: 'Durable Inventory target id.' }, { name: 'cwd', description: 'Control-plane path mapped to the target workspace.' }],
+        returns: 'Route mounted before Agent publication.',
+      },
+      {
+        signature: '@Remote(\'list\') async list(): Promise<DeploymentTarget[]>',
+        description: 'List targets visible to the authenticated actor.',
+        parameters: [],
+        returns: 'Authorized target projections in name order.',
+      },
+      {
+        signature: '@Remote(\'get\') async get(id: DeploymentTargetId): Promise<DeploymentTarget | undefined>',
+        description: 'Read one target.',
+        parameters: [{ name: 'id', description: 'Target identifier.' }],
+        returns: 'Authorized target projection, or undefined when absent.',
+      },
+      {
+        signature: '@Remote(\'create\') async create(input: DeploymentTargetCreate): Promise<DeploymentTarget>',
+        description: 'Create one target after configuration authorization.',
+        parameters: [{ name: 'input', description: 'Valid non-secret target configuration.' }],
+        returns: 'Created target at revision one.',
+      },
+      {
+        signature: '@Remote(\'listGrants\') async listGrants(targetId: DeploymentTargetId): Promise<DeploymentTargetGrant[]>',
+        description: 'List one target\'s explicit user grants.',
+        parameters: [{ name: 'targetId', description: 'Target whose grants are requested.' }],
+        returns: 'Grants ordered by user id.',
+      },
+      {
+        signature: '@Remote(\'setGrant\') async setGrant(input: DeploymentTargetGrantSet): Promise<DeploymentTargetGrant | undefined>',
+        description: 'Create, replace, or delete one explicit target grant.',
+        parameters: [{ name: 'input', description: 'Target, user, permission, and observed revision.' }],
+        returns: 'New grant, or undefined after deletion.',
+      },
+      {
+        signature: '@Remote(\'update\') async update(id: DeploymentTargetId, input: DeploymentTargetUpdate): Promise<DeploymentTarget>',
+        description: 'Replace one target when its observed revision is current.',
+        parameters: [{ name: 'id', description: 'Target identifier.' }, { name: 'input', description: 'Replacement and observed revision.' }],
+        returns: 'Updated target with an incremented revision.',
+      },
+      {
+        signature: '@Remote(\'delete\') async delete(id: DeploymentTargetId, expectedRevision: number): Promise<void>',
+        description: 'Delete a target after administrative authorization.',
+        parameters: [{ name: 'id', description: 'Target identifier.' }, { name: 'expectedRevision', description: 'Revision observed by the administrator.' }],
+        returns: 'Resolution after delete and audit.',
+      },
+      {
+        signature: '@Remote(\'checkHealth\') async checkHealth(id: DeploymentTargetId): Promise<DeploymentTargetHealth>',
+        description: 'Verify target reachability and its configured workspace without changing it.',
+        parameters: [{ name: 'id', description: 'Target identifier.' }],
+        returns: 'Point-in-time health result with no secret material.',
+      },
+      {
+        signature: '@Remote(\'listWorktrees\') async listWorktrees(targetId: DeploymentTargetId): Promise<DeploymentWorktree[]>',
+        description: 'List Git worktrees inside one authorized execution target.',
+        parameters: [{ name: 'targetId', description: 'Inventory target owning the repository and process realm.' }],
+        returns: 'Git-authoritative worktree records.',
+      },
+      {
+        signature: '@Remote(\'createWorktree\') async createWorktree(input: DeploymentWorktreeCreate): Promise<DeploymentWorktree>',
+        description: 'Create a managed linked worktree inside one execution target.',
+        parameters: [{ name: 'input', description: 'Target, branch, and optional starting revision.' }],
+        returns: 'The created Git-authoritative record.',
+      },
+      {
+        signature: '@Remote(\'removeWorktree\') async removeWorktree(targetId: DeploymentTargetId, path: string): Promise<void>',
+        description: 'Remove a clean managed linked worktree inside one execution target.',
+        parameters: [{ name: 'targetId', description: 'Inventory target owning the repository.' }, { name: 'path', description: 'Exact managed path returned by {@link listWorktrees}.' }],
+      },
+      {
+        signature: '@Remote(\'listPlans\') async listPlans(): Promise<DeploymentPlan[]>',
+        description: 'List deployment plans after read authorization.',
+        parameters: [],
+        returns: 'Plans newest first.',
+      },
+      {
+        signature: '@Remote(\'createPlan\') async createPlan(input: DeploymentPlanCreate): Promise<DeploymentPlan>',
+        description: 'Create an immutable deployment plan.',
+        parameters: [{ name: 'input', description: 'Target and literal argv.' }],
+        returns: 'Durable plan.',
+      },
+      {
+        signature: '@Remote(\'approvePlan\') async approvePlan(id: DeploymentPlanId, expectedRevision: number): Promise<DeploymentPlan>',
+        description: 'Approve a production deployment as an administrator.',
+        parameters: [{ name: 'id', description: 'Plan id.' }, { name: 'expectedRevision', description: 'Observed revision.' }],
+        returns: 'Approved plan.',
+      },
+      {
+        signature: '@Remote(\'executePlan\') async executePlan(id: DeploymentPlanId, expectedRevision: number): Promise<DeploymentPlan>',
+        description: 'Execute one ready plan exactly once.',
+        parameters: [{ name: 'id', description: 'Plan id.' }, { name: 'expectedRevision', description: 'Observed revision.' }],
+        returns: 'Settled plan.',
+      },
+      {
+        signature: '@Remote(\'listRollouts\') async listRollouts(): Promise<DeploymentRollout[]>',
+        description: 'List rolling deployments whose complete target set is readable by the actor.',
+        parameters: [],
+        returns: 'Authorized rollouts newest first.',
+      },
+      {
+        signature: '@Remote(\'createRollout\') async createRollout(input: DeploymentRolloutCreate): Promise<DeploymentRollout>',
+        description: 'Create one immutable health-gated multi-target rollout.',
+        parameters: [{ name: 'input', description: 'Ordered targets, literal argv, timeout, and batch size.' }],
+        returns: 'Durable rollout awaiting approval when any target is production.',
+      },
+      {
+        signature: '@Remote(\'approveRollout\') async approveRollout(id: DeploymentRolloutId, expectedRevision: number): Promise<DeploymentRollout>',
+        description: 'Approve a production rollout as a different administrator authorized for every target.',
+        parameters: [{ name: 'id', description: 'Rollout id.' }, { name: 'expectedRevision', description: 'Observed revision.' }],
+        returns: 'Approved rollout.',
+      },
+      {
+        signature: '@Remote(\'executeRollout\') async executeRollout(id: DeploymentRolloutId, expectedRevision: number): Promise<DeploymentRollout>',
+        description: 'Execute one ready rollout exactly once in health-gated bounded batches.',
+        parameters: [{ name: 'id', description: 'Rollout id.' }, { name: 'expectedRevision', description: 'Observed revision.' }],
+        returns: 'Settled rollout with every target result.',
+      },
+      {
+        signature: '@Remote(\'recoverRollout\') async recoverRollout(id: DeploymentRolloutId, expectedRevision: number): Promise<DeploymentRollout>',
+        description: 'Retry traffic restoration for targets left drained after an interrupted or failed rollout.',
+        parameters: [{ name: 'id', description: 'Rollout requiring operator recovery.' }, { name: 'expectedRevision', description: 'Observed rollout revision.' }],
+        returns: 'Failed rollout after restoration, or recovery-required when any restore still fails.',
+      },
+    ],
+  },
+  {
     key: 'directoryPicker',
     summary: 'Abstract directory-picking service.',
     description: 'Abstract directory-picking service. Subclass, implement `capability()`, and load the subclass as a plugin — it registers as `ctx.directoryPicker` (one implementation per context; loading a second throws, cordis\' standard duplicate-service behavior). The capability object must be stable for the service lifetime: consumers may capture it across calls.',
@@ -549,6 +783,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
+        signature: 'readonly executionWorld: ExecutionWorldIdentity = Object.freeze({ label: `e2b:${randomUUID()}` })',
+        description: 'Opaque identity shared only by adapters backed by this exact sandbox owner.',
+        parameters: [],
+      },
+      {
         signature: 'readonly runtimeRoot: string',
         description: 'Remote directory reserved for adapter-owned process and terminal state.',
         parameters: [],
@@ -559,6 +798,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
         returns: 'the created sandbox after the configured cwd exists.',
         throws: ['when E2B rejects creation or the service is disposing.'],
+      },
+    ],
+  },
+  {
+    key: 'executionWorldRouter',
+    summary: 'Registry with exactly one provider for durable execution targets.',
+    description: 'Registry with exactly one provider for durable execution targets.',
+    methods: [
+      {
+        signature: 'register(provider: ExecutionWorldRouteProvider): () => void',
+        description: 'Register the deployment\'s target provider.',
+        parameters: [{ name: 'provider', description: 'Sole provider resolving durable targets.' }],
+        returns: 'Disposer removing this exact provider.',
+      },
+      {
+        signature: 'route(runtimeContext: Context, targetId: ExecutionTargetId, cwd: string | undefined): ExecutionWorldRoute',
+        description: 'Resolve one durable target through the registered provider.',
+        parameters: [{ name: 'runtimeContext', description: 'AgentLoop runtime Context carrying the complete capability graph.' }, { name: 'targetId', description: 'Exact durable target id.' }, { name: 'cwd', description: 'Control-plane working directory recorded by the session.' }],
+        returns: 'Pre-construction context and pre-publication setup.',
       },
     ],
   },
@@ -638,6 +896,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Atomically edit literal text. When supplied, the version guard is checked before matching so stale content reports `FS_STALE_VERSION`; omission edits the current content without a freshness precondition.',
         parameters: [{ name: 'target', description: 'the resolved target to edit.' }, { name: 'edit', description: 'the literal search/replace request.' }, { name: 'expected', description: 'the version guard; omit for an unconditional edit.' }, { name: 'signal', description: 'aborts before atomic publication takes effect.' }, { name: 'sandboxPolicy', description: 'the per-call mode and workspace root this edit runs under; a sandboxing backend fences the edit by it, the bare backend ignores it. Omit to leave the backend its own default.' }],
         returns: 'the outcome, including the version the edit produced.',
+      },
+    ],
+  },
+  {
+    key: 'gitWorktrees',
+    summary: 'Target-aware Git worktree manager that never invokes a shell or force removal.',
+    description: 'Target-aware Git worktree manager that never invokes a shell or force removal.',
+    methods: [
+      {
+        signature: 'async list(repository: string): Promise<GitWorktree[]>',
+        description: 'List linked worktrees using Git\'s stable NUL-delimited porcelain format.',
+        parameters: [{ name: 'repository', description: 'Absolute POSIX path to the repository.' }],
+        returns: 'Parsed worktrees in Git\'s order.',
+      },
+      {
+        signature: 'async create(request: CreateGitWorktree): Promise<GitWorktree>',
+        description: 'Create a linked worktree at a deterministic contained path.',
+        parameters: [{ name: 'request', description: 'Repository, branch, and optional starting revision.' }],
+        returns: 'The created worktree after reading authoritative Git state.',
+      },
+      {
+        signature: 'async remove(repository: string, path: string): Promise<void>',
+        description: 'Remove a linked worktree without force; Git rejects main, locked, or dirty worktrees.',
+        parameters: [{ name: 'repository', description: 'Absolute POSIX path to the repository.' }, { name: 'path', description: 'Exact path returned by {@link list}.' }],
+        returns: 'Resolution after Git removes its directory and metadata.',
       },
     ],
   },
@@ -1022,6 +1305,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
+        signature: 'readonly supportsDeletion: boolean = false',
+        description: 'Whether this backend implements permanent inactive-session deletion.',
+        parameters: [],
+      },
+      {
         signature: 'readRaw(_id: SessionId, signal?: AbortSignal): Promise<SessionRawArtifact | undefined>',
         description: 'Read a session\'s backend-owned artifact text verbatim — the exact durable bytes the backend wrote (decoded from its physical encoding, e.g. a decompressed JSONL). The returned `content` is the raw text, not a reconstruction from parsed events, so it preserves backend-specific serialization (chunk packing, key order, line breaks). Callers first test supportsRawArtifacts; `undefined` then means only that the requested session has no materialized artifact.',
         parameters: [{ name: '_id', description: 'the persisted session to read (unused by the default: no per-session artifact).' }, { name: 'signal', description: 'optional cancellation for backend read work.' }],
@@ -1037,6 +1325,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'abstract append(id: SessionId, events: readonly SessionEvent[]): Promise<void>',
         description: 'Durably persist a batch of events. Honors the append-only and contiguous- seq contracts: the first event\'s `seq` MUST equal the stored next-seq (after `load` has durably closed any interrupted turn). Rejects non-JSON- serializable `event.data` with an error naming the offending event type.',
         parameters: [{ name: 'id', description: 'the session the batch belongs to.' }, { name: 'events', description: 'the contiguous batch to persist, in seq order.' }],
+      },
+      {
+        signature: 'delete(_id: SessionId, signal?: AbortSignal): Promise<boolean>',
+        description: 'Permanently delete one inactive materialized session.\n\nThe default preserves compatibility for third-party append-only backends while making unsupported deletion explicit. First-party backends override this through the shared coordinator, which refuses live or reserved ids.',
+        parameters: [{ name: '_id', description: 'persisted session identity.' }, { name: 'signal', description: 'optional cancellation before destructive storage work starts.' }],
+        returns: 'whether a materialized session existed and was deleted.',
       },
       {
         signature: 'async prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation>',
@@ -1172,6 +1466,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'List the complete logical corpus using live-preferred records.',
         parameters: [{ name: 'signal', description: 'optional cancellation for persistence listing.' }],
         returns: 'deterministic newest-first cloned session records.',
+      },
+      {
+        signature: 'deleteSession(sessionId: SessionId, signal?: AbortSignal): Promise<void>',
+        description: 'Permanently delete one inactive persisted session.',
+        parameters: [{ name: 'sessionId', description: 'exact persisted identity.' }, { name: 'signal', description: 'optional cancellation before destructive storage work starts.' }],
       },
       {
         signature: 'async readSession(sessionId: SessionId): Promise<SessionLogSnapshot>',
@@ -1531,6 +1830,35 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Persist `input.content` to a session-scoped spill artifact.',
         parameters: [{ name: 'input', description: 'the owner, caller-supplied source fields, suggested name, and full text to save.' }],
         returns: 'the saved artifact\'s {@link SpillRef}; rejects on a storage failure.',
+      },
+    ],
+  },
+  {
+    key: 'ssh',
+    summary: 'One connection owner shared by filesystem and subprocess providers.',
+    description: 'One connection owner shared by filesystem and subprocess providers.',
+    methods: [
+      {
+        signature: 'readonly executionWorld: ExecutionWorldIdentity',
+        description: 'Opaque identity shared by every provider using this owner.',
+        parameters: [],
+      },
+      {
+        signature: 'async ready(): Promise<void>',
+        description: 'Await the authenticated ControlMaster connection.',
+        parameters: [],
+      },
+      {
+        signature: 'async command(argv: readonly string[], options: SshCommandOptions = {}): Promise<SshCommandResult>',
+        description: 'Run one remote argv through the authenticated shared connection.',
+        parameters: [{ name: 'argv', description: 'Program and literal arguments.' }, { name: 'options', description: 'Optional input and cancellation.' }],
+        returns: 'Captured exit status and output.',
+      },
+      {
+        signature: 'async spawnChannel(argv: readonly string[], options: SshChannelOptions = {}): Promise<SshChannel>',
+        description: 'Start one live remote argv through the authenticated shared connection.',
+        parameters: [{ name: 'argv', description: 'Program and literal arguments.' }, { name: 'options', description: 'PTY and transport cancellation options.' }],
+        returns: 'Live multiplexed channel.',
       },
     ],
   },
@@ -2072,6 +2400,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the disposer removing the route.',
       },
       {
+        signature: 'guardRequests(guard: WebRequestGuard): () => void',
+        description: 'Register an HTTP guard that runs before route matching and fallback dispatch. Guards run in registration order; a false result stops dispatch after the guard has completed the response.',
+        parameters: [{ name: 'guard', description: 'request policy that either permits dispatch or owns rejection.' }],
+        returns: 'the disposer removing the guard.',
+      },
+      {
+        signature: 'guardUpgrades(guard: WebUpgradeGuard): () => void',
+        description: 'Register an upgrade guard that runs before upgrade-route lookup. Guards run in registration order; a false result stops dispatch after the guard has answered or destroyed the socket.',
+        parameters: [{ name: 'guard', description: 'upgrade policy that either permits dispatch or owns rejection.' }],
+        returns: 'the disposer removing the guard.',
+      },
+      {
         signature: 'registerFallback(handler: WebRoute[\'handler\']): () => void',
         description: 'Claim the fallback seat: the handler answering every request no named route matches (the SPA dist server in the shipped Web composition). One owner only — a second registration throws, because two fallbacks cannot compose.',
         parameters: [{ name: 'handler', description: 'owns the full response lifecycle of unmatched requests.' }],
@@ -2157,6 +2497,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
 
 /** Every harness event, sorted by name. */
 export const EVENT_API: readonly EventApiEntry[] = [
+  {
+    name: 'acp/closed',
+    mode: 'emit',
+    signature: '\'acp/closed\'(): void',
+    summary: 'The ACP input stream closed and every Agent owned by that connection reached its teardown settlement point.',
+    description: 'The ACP input stream closed and every Agent owned by that connection reached its teardown settlement point. A teardown failure is logged before this notification so a process host can still terminate.',
+    parameters: [],
+  },
   {
     name: 'agent-loop/config-start-failed',
     mode: 'emit',
@@ -2610,6 +2958,30 @@ export const EVENT_API: readonly EventApiEntry[] = [
 /** Shapes of every exported type the Service and Event signatures reference (transitively), sorted by name. */
 export const TYPE_API: readonly TypeApiEntry[] = [
   {
+    name: 'AccessActor',
+    declaration: 'export interface AccessActor {\n    readonly userId: UserId;\n    readonly username: string;\n    readonly roles: readonly AccessRole[];\n    readonly sessionId: AccessSessionId;\n}',
+  },
+  {
+    name: 'AccessAuditEntry',
+    declaration: 'export interface AccessAuditEntry {\n    readonly id: string;\n    readonly at: string;\n    readonly action: string;\n    readonly outcome: \'success\' | \'failure\' | \'denied\';\n    readonly actorUserId?: UserId;\n    readonly subjectUserId?: UserId;\n    readonly clientAddress?: string;\n    readonly detail?: string;\n}',
+  },
+  {
+    name: 'AccessAuditFields',
+    declaration: 'export type AccessAuditFields = Omit<AccessAuditEntry, \'id\' | \'at\' | \'action\' | \'outcome\'>;',
+  },
+  {
+    name: 'AccessPermission',
+    declaration: 'export type AccessPermission = \'read\' | \'operate\' | \'configure\' | \'administer\';',
+  },
+  {
+    name: 'AccessRole',
+    declaration: 'export type AccessRole = \'admin\' | \'operator\' | \'developer\' | \'viewer\';',
+  },
+  {
+    name: 'AccessUserView',
+    declaration: 'export interface AccessUserView {\n    readonly id: UserId;\n    readonly username: string;\n    readonly roles: readonly AccessRole[];\n    readonly disabled: boolean;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
     name: 'AdapterRegistrationHandle',
     declaration: 'export interface AdapterRegistrationHandle {\n    (): void;\n    replace(providers: string[]): void;\n}',
   },
@@ -2899,7 +3271,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateAgentOptions',
-    declaration: 'export interface CreateAgentOptions {\n    readonly sessionId: SessionId;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n    readonly seed?: readonly SessionEvent[];\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+    declaration: 'export interface CreateAgentOptions {\n    readonly sessionId: SessionId;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n        readonly executionTarget?: ExecutionTargetId;\n    };\n    readonly seed?: readonly SessionEvent[];\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+  },
+  {
+    name: 'CreateGitWorktree',
+    declaration: 'export interface CreateGitWorktree {\n    readonly repository: string;\n    readonly branch: string;\n    readonly startPoint?: string;\n    readonly createBranch?: boolean;\n}',
   },
   {
     name: 'CreateGoalRequest',
@@ -2911,7 +3287,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateSessionOptions',
-    declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
+    declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n        readonly executionTarget?: ExecutionTargetId;\n    };\n}',
   },
   {
     name: 'CredentialInfo',
@@ -2920,6 +3296,98 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CredentialRef',
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
+  },
+  {
+    name: 'DeploymentEnvironment',
+    declaration: 'export type DeploymentEnvironment = \'development\' | \'staging\' | \'production\';',
+  },
+  {
+    name: 'DeploymentPlan',
+    declaration: 'export interface DeploymentPlan {\n    readonly id: DeploymentPlanId;\n    readonly targetId: DeploymentTargetId;\n    readonly targetRevision: number;\n    readonly environment: DeploymentEnvironment;\n    readonly argv: readonly string[];\n    readonly timeoutMs: number;\n    readonly status: DeploymentPlanStatus;\n    readonly createdBy: string;\n    readonly approvedBy?: string;\n    readonly createdAt: string;\n    readonly approvedAt?: string;\n    readonly startedAt?: string;\n    readonly finishedAt?: string;\n    readonly exitCode?: number;\n    readonly output?: string;\n    readonly failure?: string;\n    readonly revision: number;\n}',
+  },
+  {
+    name: 'DeploymentPlanCreate',
+    declaration: 'export interface DeploymentPlanCreate {\n    readonly targetId: DeploymentTargetId;\n    readonly argv: readonly string[];\n    readonly timeoutMs?: number;\n}',
+  },
+  {
+    name: 'DeploymentPlanId',
+    declaration: 'export type DeploymentPlanId = Branded<\'DeploymentPlanId\'>;',
+  },
+  {
+    name: 'DeploymentPlanStatus',
+    declaration: 'export type DeploymentPlanStatus = \'pending-approval\' | \'ready\' | \'running\' | \'succeeded\' | \'failed\';',
+  },
+  {
+    name: 'DeploymentRollout',
+    declaration: 'export interface DeploymentRollout {\n    readonly id: DeploymentRolloutId;\n    readonly targets: readonly DeploymentRolloutTarget[];\n    readonly argv: readonly string[];\n    readonly drainArgv?: readonly string[];\n    readonly verifyArgv?: readonly string[];\n    readonly rollbackArgv?: readonly string[];\n    readonly restoreArgv?: readonly string[];\n    readonly timeoutMs: number;\n    readonly batchSize: number;\n    readonly status: DeploymentRolloutStatus;\n    readonly createdBy: string;\n    readonly approvedBy?: string;\n    readonly createdAt: string;\n    readonly approvedAt?: string;\n    readonly startedAt?: string;\n    readonly finishedAt?: string;\n    readonly revision: number;\n}',
+  },
+  {
+    name: 'DeploymentRolloutCreate',
+    declaration: 'export interface DeploymentRolloutCreate {\n    readonly targetIds: readonly DeploymentTargetId[];\n    readonly argv: readonly string[];\n    readonly drainArgv?: readonly string[];\n    readonly verifyArgv?: readonly string[];\n    readonly rollbackArgv?: readonly string[];\n    readonly restoreArgv?: readonly string[];\n    readonly timeoutMs?: number;\n    readonly batchSize?: number;\n}',
+  },
+  {
+    name: 'DeploymentRolloutId',
+    declaration: 'export type DeploymentRolloutId = Branded<\'DeploymentRolloutId\'>;',
+  },
+  {
+    name: 'DeploymentRolloutPhase',
+    declaration: 'export type DeploymentRolloutPhase = \'drain\' | \'deploy\' | \'verify\' | \'rollback\' | \'restore\';',
+  },
+  {
+    name: 'DeploymentRolloutStatus',
+    declaration: 'export type DeploymentRolloutStatus = DeploymentPlanStatus | \'recovery-required\';',
+  },
+  {
+    name: 'DeploymentRolloutStep',
+    declaration: 'export interface DeploymentRolloutStep {\n    readonly phase: DeploymentRolloutPhase;\n    readonly status: \'succeeded\' | \'failed\';\n    readonly startedAt: string;\n    readonly finishedAt: string;\n    readonly exitCode?: number;\n    readonly output?: string;\n    readonly failure?: string;\n}',
+  },
+  {
+    name: 'DeploymentRolloutTarget',
+    declaration: 'export interface DeploymentRolloutTarget {\n    readonly targetId: DeploymentTargetId;\n    readonly targetRevision: number;\n    readonly environment: DeploymentEnvironment;\n    readonly status: DeploymentRolloutTargetStatus;\n    readonly startedAt?: string;\n    readonly finishedAt?: string;\n    readonly exitCode?: number;\n    readonly output?: string;\n    readonly failure?: string;\n    readonly steps: readonly DeploymentRolloutStep[];\n}',
+  },
+  {
+    name: 'DeploymentRolloutTargetStatus',
+    declaration: 'export type DeploymentRolloutTargetStatus = \'pending\' | \'running\' | \'succeeded\' | \'failed\' | \'skipped\' | \'recovery-required\';',
+  },
+  {
+    name: 'DeploymentTarget',
+    declaration: 'export interface DeploymentTarget {\n    readonly id: DeploymentTargetId;\n    readonly name: string;\n    readonly environment: DeploymentEnvironment;\n    readonly transport: DeploymentTransport;\n    readonly host?: string;\n    readonly port?: number;\n    readonly username?: string;\n    readonly hostKey?: string;\n    readonly identityCredential?: string;\n    readonly containerRuntime?: \'docker\' | \'podman\';\n    readonly containerImage?: string;\n    readonly containerNetwork?: \'none\' | \'host\';\n    readonly workspace: string;\n    readonly enabled: boolean;\n    readonly labels: Readonly<Record<string, string>>;\n    readonly revision: number;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'DeploymentTargetCreate',
+    declaration: 'export type DeploymentTargetCreate = Omit<DeploymentTarget, \'id\' | \'revision\' | \'createdAt\' | \'updatedAt\'>;',
+  },
+  {
+    name: 'DeploymentTargetGrant',
+    declaration: 'export interface DeploymentTargetGrant {\n    readonly targetId: DeploymentTargetId;\n    readonly userId: UserId;\n    readonly permission: AccessPermission;\n    readonly revision: number;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'DeploymentTargetGrantSet',
+    declaration: 'export interface DeploymentTargetGrantSet {\n    readonly targetId: DeploymentTargetId;\n    readonly userId: UserId;\n    readonly permission?: AccessPermission;\n    readonly expectedRevision?: number;\n}',
+  },
+  {
+    name: 'DeploymentTargetHealth',
+    declaration: 'export interface DeploymentTargetHealth {\n    readonly targetId: DeploymentTargetId;\n    readonly status: \'healthy\' | \'unhealthy\' | \'disabled\';\n    readonly checkedAt: string;\n    readonly latencyMs: number;\n    readonly detail: string;\n}',
+  },
+  {
+    name: 'DeploymentTargetId',
+    declaration: 'export type DeploymentTargetId = Branded<\'DeploymentTargetId\'>;',
+  },
+  {
+    name: 'DeploymentTargetUpdate',
+    declaration: 'export interface DeploymentTargetUpdate {\n    readonly expectedRevision: number;\n    readonly value: DeploymentTargetCreate;\n}',
+  },
+  {
+    name: 'DeploymentTransport',
+    declaration: 'export type DeploymentTransport = \'local\' | \'ssh\' | \'container\';',
+  },
+  {
+    name: 'DeploymentWorktree',
+    declaration: 'export interface DeploymentWorktree {\n    readonly path: string;\n    readonly head: string;\n    readonly branch?: string;\n    readonly bare: boolean;\n    readonly detached: boolean;\n    readonly locked?: string;\n    readonly prunable?: string;\n}',
+  },
+  {
+    name: 'DeploymentWorktreeCreate',
+    declaration: 'export interface DeploymentWorktreeCreate {\n    readonly targetId: DeploymentTargetId;\n    readonly branch: string;\n    readonly startPoint?: string;\n    readonly createBranch?: boolean;\n}',
   },
   {
     name: 'DiffCallView',
@@ -3030,6 +3498,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
   },
   {
+    name: 'ExecutionTargetId',
+    declaration: 'export type ExecutionTargetId = Branded<\'ExecutionTargetId\'>;',
+  },
+  {
+    name: 'ExecutionWorldIdentity',
+    declaration: 'export interface ExecutionWorldIdentity {\n    readonly label: string;\n}',
+  },
+  {
+    name: 'ExecutionWorldRoute',
+    declaration: 'export interface ExecutionWorldRoute {\n    readonly context: Context;\n    setup(agentContext: Context): Promise<void>;\n}',
+  },
+  {
+    name: 'ExecutionWorldRouteProvider',
+    declaration: 'export interface ExecutionWorldRouteProvider {\n    route(runtimeContext: Context, targetId: ExecutionTargetId, cwd: string | undefined): ExecutionWorldRoute;\n}',
+  },
+  {
     name: 'FileDiff',
     declaration: 'export interface FileDiff {\n    path: string;\n    oldText: string | null;\n    newText: string;\n}',
   },
@@ -3100,6 +3584,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GenericResultView',
     declaration: 'export interface GenericResultView {\n    card: \'generic\';\n    title?: string;\n    content?: ContentBlock[];\n}',
+  },
+  {
+    name: 'GitWorktree',
+    declaration: 'export interface GitWorktree {\n    readonly path: string;\n    readonly head: string;\n    readonly branch?: string;\n    readonly bare: boolean;\n    readonly detached: boolean;\n    readonly locked?: string;\n    readonly prunable?: string;\n}',
   },
   {
     name: 'GoalActivation',
@@ -3795,7 +4283,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionHeader',
-    declaration: 'export interface SessionHeader {\n    readonly version: number;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly seedLength?: number;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n}',
+    declaration: 'export interface SessionHeader {\n    readonly version: number;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly seedLength?: number;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n    readonly executionTarget?: ExecutionTargetId;\n}',
   },
   {
     name: 'SessionId',
@@ -4039,7 +4527,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SkillProviderObservation',
-    declaration: 'export interface SkillProviderObservation {\n    readonly candidates: readonly SkillCandidate[];\n    readonly complete: boolean;\n}',
+    declaration: 'export interface SkillProviderObservation {\n    readonly candidates: readonly SkillCandidate[];\n    readonly complete: boolean;\n    readonly cacheable?: boolean;\n}',
   },
   {
     name: 'SkillRegistration',
@@ -4076,6 +4564,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SpillSource',
     declaration: 'export interface SpillSource {\n    toolName: string;\n    callId: CallId;\n    label: string;\n}',
+  },
+  {
+    name: 'SshChannel',
+    declaration: 'export interface SshChannel {\n    readonly stdin: Writable;\n    readonly stdout: Readable;\n    readonly stderr: Readable;\n    readonly transportPid: number;\n    readonly done: Promise<{\n        readonly exitCode: number | null;\n        readonly signal: NodeJS.Signals | null;\n    }>;\n    close(): void;\n}',
+  },
+  {
+    name: 'SshChannelOptions',
+    declaration: 'export interface SshChannelOptions {\n    readonly terminal?: boolean;\n    readonly signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'SshCommandOptions',
+    declaration: 'export interface SshCommandOptions {\n    readonly input?: Uint8Array;\n    readonly signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'SshCommandResult',
+    declaration: 'export interface SshCommandResult {\n    readonly exitCode: number;\n    readonly stdout: Buffer;\n    readonly stderr: Buffer;\n}',
   },
   {
     name: 'StorageBackend',
@@ -4558,6 +5062,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WebFetchResultView {\n    card: \'web\';\n    kind: \'fetch\';\n    title?: string;\n    url: string;\n    statusCode: number;\n    truncated: boolean;\n}',
   },
   {
+    name: 'WebRequestGuard',
+    declaration: 'export type WebRequestGuard = (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>;',
+  },
+  {
     name: 'WebResultView',
     declaration: 'export type WebResultView = WebSearchResultView | WebFetchResultView;',
   },
@@ -4592,6 +5100,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WebSource',
     declaration: 'export interface WebSource {\n    url: string;\n    title?: string;\n    snippet?: string;\n    publishedAt?: string;\n}',
+  },
+  {
+    name: 'WebUpgradeGuard',
+    declaration: 'export type WebUpgradeGuard = (req: IncomingMessage, socket: Duplex) => boolean | Promise<boolean>;',
   },
   {
     name: 'WebUpgradeRoute',

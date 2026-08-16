@@ -146,7 +146,7 @@ export function apply(ctx: ClientContext): void {
     .filter(row => row.agentId === sessionId && String(row.pluginId).includes(query))
   const source: InputTriggerSource = {
     trigger: '@',
-    name: 'cordis',
+    name: '@deepseek-ai/cordis',
     order: 1,
     candidates(session, { query }) {
       const rows = rowsOf(session.sessionId, query)

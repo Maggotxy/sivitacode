@@ -12,6 +12,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 // Empty type imports carry the `loader` and `webServer` Context merges for the reads below.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -27,6 +28,16 @@ export { resolveDirectoryPickerBackend } from './resolve.ts'
 export const name = 'directory-picker-auto'
 /** Required services: the effective bind host (`webServer`) and the entry tree the backend mounts into (`loader`). */
 export const inject = ['webServer', 'loader']
+
+/** Adaptive chooser configuration. */
+export interface Config {
+  /** Select the in-app browser when an authority outside the host can reach a loopback-bound server. @default false */
+  remoteBrowserAccess?: boolean
+}
+
+export const Config: z<Config> = z.object({
+  remoteBrowserAccess: z.boolean().default(false),
+})
 
 /**
  * Host backend package per resolved kind — fixed composition vocabulary, not a
@@ -59,9 +70,10 @@ export const SURFACE_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
  * both faces of the mounted interaction (and their dependents) quiesced.
  * @param ctx - cordis context carrying the injected `webServer` and `loader`.
  */
-export async function apply(ctx: Context): Promise<void> {
+export async function apply(ctx: Context, config: Config): Promise<void> {
   const backend = resolveDirectoryPickerBackend({
     bindHost: ctx.webServer.host,
+    remoteBrowserAccess: config.remoteBrowserAccess === true,
     platform: process.platform,
     env: process.env,
     linuxChooser: hasLinuxChooserBinary(process.env.PATH, canExecute),

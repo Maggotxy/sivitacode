@@ -193,6 +193,15 @@ export interface PersistenceBackend<TornMarker = unknown> {
   commitRepair(meta: SessionHeader, tornMarker: TornMarker | undefined, closers: readonly SessionEvent[]): Promise<void>
 
   /**
+   * Permanently remove one materialized stored identity. Implementations must
+   * resolve the exact id and return false when absent.
+   * @param id - persisted session identity.
+   * @param signal - optional cancellation before destructive work starts.
+   * @returns whether a stored identity was removed.
+   */
+  deleteStored?(id: SessionId, signal?: AbortSignal): Promise<boolean>
+
+  /**
    * List all stored (materialized) sessions' metadata.
    * @param signal - optional cancellation for backend listing work.
    */
@@ -677,6 +686,29 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
     }
     return this.serialize(id, () => this.appendCore(id, batch))
+  }
+
+  /**
+   * Permanently delete one inactive materialized session.
+   * @param id - persisted session identity.
+   * @param signal - optional cancellation before storage deletion starts.
+   * @returns whether a materialized session existed and was deleted.
+   */
+  async delete(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    await this.waitForRetirement(id, signal)
+    return this.serialize(id, async () => {
+      signal?.throwIfAborted()
+      if (this.ctx.sessions.get(id) !== undefined || this.states.get(id)?.owner !== undefined) {
+        throw new Error(`cannot delete session "${id}" while it is live`)
+      }
+      if (this.backend.deleteStored === undefined) {
+        throw new Error('this session persistence backend does not support deletion')
+      }
+      this.preparations.invalidateForDelete(id)
+      const deleted = await this.backend.deleteStored(id, signal)
+      this.states.delete(id)
+      return deleted
+    }, signal)
   }
 
   private async appendCore(id: SessionId, events: readonly SessionEvent[]): Promise<void> {

@@ -1,8 +1,8 @@
-/* Ongoing blue has no alias token (state-business-primary is the 500 step,
- * not this 450) — component-level var pinned to the static scale instead. */
+/* Ongoing work uses the lighter Sivita violet step so the animated cells
+ * retain contrast without competing with primary actions. */
 .dot,
 .matrix {
-  --dsh-state-ongoing: var(--dsw-static-deepseek-450);
+  --dsh-state-ongoing: var(--dsw-static-sivita-450);
 }
 
 /* Solid states: same-color halo via a 0.10-opacity outer layer (::before)

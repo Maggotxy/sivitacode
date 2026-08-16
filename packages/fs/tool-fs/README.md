@@ -14,6 +14,8 @@ await ctx.plugin(ToolFs)                                  // this package — re
 
 `@deepseek-ai/dsh-fs-observation-policy` is **optional**: omit it and the tools run against the bare provider (unconditional write/overwrite/edit, no observed-state). A deployment that loads these tools is expected to also load it, so the behavior is read-before-write/edit.
 
+For a session carrying a durable `executionTarget`, every call selects the filesystem from that exact Agent scope; sessions without a target and agentless calls use the plugin's `ctx.fs`. The observation events remain on the shared tool context, so read-before-mutate state follows the calling tool execution while file I/O stays in the selected local, SSH, or OCI world. A routed filesystem that exposes no sandbox policy rejects target-specific escalation fields instead of applying the control plane's policy to a different machine.
+
 `read_image` registers only while a durable `ctx.attachments` service is mounted — without one the deployment cannot commit image bytes, so the tool never appears. Execution additionally requires the exact routed model to declare `image` input (resolved through `ctx.llm.resolveModelInfo` from the session's latest request header, falling back to agent options); an unknown or text-only route gets a refusal result before any filesystem I/O, so a text route's durable history stays free of image blocks.
 
 ## Config

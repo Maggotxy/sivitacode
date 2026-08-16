@@ -18,6 +18,9 @@
       "path": "../../../vendor/loader"
     },
     {
+      "path": "../../identity/access-control"
+    },
+    {
       "path": "../../boot/app-boot"
     },
     {

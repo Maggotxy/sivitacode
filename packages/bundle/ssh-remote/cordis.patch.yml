@@ -1,0 +1,48 @@
+# Explicit overlay for one pinned Linux SSH execution world. Bootstrap-only
+# SIVITACODE_SSH_* values must come from the launching environment.
+- id: subprocess
+  disabled: true
+
+- id: fs-sandbox
+  disabled: true
+
+# Host-local bwrap/Landlock/Seatbelt cannot confine the remote kernel. Keep the
+# shell consumer but use its direct subprocess path and advertise no false
+# confinement capability until a remote container provider is mounted.
+- id: bash-sandbox
+  disabled: true
+
+- id: sandbox-policy
+  config:
+    mode: danger-full-access
+    workspaceRoot: !!js process.cwd()
+
+- insert:
+    - id: ssh
+      name: '@deepseek-ai/dsh-ssh'
+      config:
+        host: !!js process.env.SIVITACODE_SSH_HOST
+        port: !!js Number(process.env.SIVITACODE_SSH_PORT ?? '22')
+        username: !!js process.env.SIVITACODE_SSH_USERNAME
+        pinnedHostKey: !!js process.env.SIVITACODE_SSH_HOST_KEY
+        identityFile: !!js process.env.SIVITACODE_SSH_IDENTITY_FILE
+        connectTimeoutMs: 15000
+        keepAliveSeconds: 15
+
+    - id: subprocess-ssh
+      name: '@deepseek-ai/dsh-subprocess-ssh'
+      config:
+        cwd: !!js process.env.SIVITACODE_SSH_WORKSPACE ?? ''
+        localAnchor: !!js process.cwd()
+        pollMs: 50
+
+    - id: fs-ssh
+      name: '@deepseek-ai/dsh-fs-ssh'
+      config:
+        cwd: !!js process.env.SIVITACODE_SSH_WORKSPACE ?? ''
+        localAnchor: !!js process.cwd()
+
+    - id: bash-ssh
+      name: '@deepseek-ai/dsh-bash-local'
+      config:
+        timeoutMs: 60000

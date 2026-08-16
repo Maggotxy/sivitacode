@@ -97,6 +97,47 @@ const GROUP_ORDER = [
 
 const SERVICE_ROLES: ServiceRole[] = [
   {
+    key: 'accessControl',
+    pkg: 'access-control',
+    title: 'Persistent identity and authorization',
+    mode: 'core',
+    consumers: ['web-app', 'connection'],
+    note: 'Owns local accounts, server-side sessions, request-local actors, deployment roles, and security audit records.',
+  },
+  {
+    key: 'deploymentInventory',
+    pkg: 'deployment-inventory',
+    title: 'Deployment target inventory',
+    mode: 'core',
+    consumers: ['agent-loop'],
+    note: 'Owns persistent non-secret local and SSH target records, optimistic revisions, access-control authorization, mutation audit, and the route provider used before Agent construction.',
+  },
+  {
+    key: 'executionWorldRouter',
+    pkg: 'execution-world',
+    title: 'Durable execution-world routing',
+    mode: 'seam',
+    implementations: ['deployment-inventory'],
+    consumers: ['agent-loop'],
+    note: 'Resolves a session target into isolated capability realms and a pre-publication setup; the Inventory provider mounts one coherent local or pinned-SSH world.',
+  },
+  {
+    key: 'gitWorktrees',
+    pkg: 'git-worktree',
+    title: 'Target-aware Git worktrees',
+    mode: 'core',
+    consumers: ['web-app'],
+    note: 'Lists, creates, and safely removes managed linked worktrees through the active subprocess execution world.',
+  },
+  {
+    key: 'ssh',
+    pkg: 'ssh',
+    title: 'Pinned SSH connection owner',
+    mode: 'core',
+    consumers: ['fs-ssh', 'subprocess-ssh'],
+    note: 'Owns exact host-key verification and one multiplexed OpenSSH connection whose execution-world identity is shared by remote filesystem, subprocess, and terminal providers.',
+  },
+  {
     key: 'attachments',
     pkg: 'attachment',
     title: 'Durable binary attachment storage',

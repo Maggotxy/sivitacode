@@ -22,7 +22,7 @@
   line-height: 24px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: var(--dsw-alias-label-primary, #0f1115);
+  color: var(--dsw-alias-label-primary, #7c3aed);
 }
 
 .hint {
@@ -36,7 +36,7 @@
   height: 20px;
   border-radius: 50%;
   border: 2px solid var(--dsw-alias-border-l2, rgb(0 0 0 / 10%));
-  border-top-color: var(--dsw-alias-brand-primary, #3964fe);
+  border-top-color: var(--dsw-alias-brand-primary, #7c3aed);
   animation: spin 0.8s linear infinite;
 }
 

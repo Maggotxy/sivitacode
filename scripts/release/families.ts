@@ -63,6 +63,8 @@ export interface InstalledEntry {
   readonly packageName: string
   /** Path to the executable inside that package. */
   readonly binPath: string
+  /** Additional product executables that must report the same package version. */
+  readonly additionalBinPaths?: readonly string[]
 }
 
 /** A release sequence: its members, its version baseline, and its tag naming. */
@@ -228,7 +230,11 @@ class DshFamily extends ReleaseFamily {
     validateTarballPayload(files, member.name)
   }
 
-  readonly installedEntry = { packageName: '@deepseek-ai/dsh', binPath: 'lib/bin.js' }
+  readonly installedEntry = {
+    packageName: '@deepseek-ai/dsh',
+    binPath: 'lib/bin.js',
+    additionalBinPaths: ['lib/sivitacode.js'],
+  }
 }
 
 /** `vendor/*`: every package keeps its own version line, so every package has its own tag. */

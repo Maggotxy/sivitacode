@@ -20,7 +20,7 @@
 - button "Settings":
   - img
   - text: Settings
-- text: Into the Unknown Preview
+- text: Build with SivitaCode Preview
 - button "Choose workspace":
   - img
   - text: workspace

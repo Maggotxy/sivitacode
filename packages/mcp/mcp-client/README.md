@@ -25,6 +25,7 @@ One plugin instance per MCP server in `cordis.yml`:
     serverName: web
     transport: streamable-http
     url: http://localhost:3000/mcp
+    networkOwner: control-plane
     headers:
       Authorization: !!js '`Bearer ${process.env.MCP_TOKEN}`'
 ```
@@ -42,6 +43,7 @@ The model sees `mcp__github__create_issue`, `mcp__web__search`, … — the same
 | `env` | stdio | no | Extra env vars merged on top of scrubbed ambient env |
 | `cwd` | stdio | no | Working directory for the child process |
 | `url` | http | yes | MCP server URL |
+| `networkOwner` | http | no | Network namespace that reaches `url`; currently fixed to `control-plane` |
 | `headers` | http | no | Extra headers (e.g. auth tokens) |
 | `toolCallTimeoutMs` | both | no | Timeout per `callTool` invocation (default 60000) |
 | `failOnStartupError` | both | no | Reject plugin activation when initial connection or tool synchronization fails (default `false`) |
@@ -69,6 +71,10 @@ Every MCP tool has two names: the raw MCP name (sent on the wire in `tools/call`
 - On disconnect/crash: the supervisor restarts the original server config with exponential backoff (`reconnect.initialDelayMs` doubling up to `reconnect.maxDelayMs`) and re-runs discovery on success — the recovered generation replaces the previous one, so tools neither duplicate nor leak. During the outage the last good generation stays registered; calls against it fail until recovery.
 - Reconnection is budgeted per outage: after `reconnect.maxAttempts` consecutive failures the server's tools are unregistered and reconnection stops until an HMR reload or Host restart. A connection that survives past `maxDelayMs` resets the budget, so an occasionally-crashing server recovers indefinitely while a crash-looping one — even with briefly successful connects — still exhausts the cap instead of restarting forever.
 - Reconnect states are user-visible in logs: reconnecting (warn, with attempt count and delay), recovered (info), final failure and disabled-loss (error). Disposal cancels any pending reconnect. With `reconnect.enabled: false`, a lost connection keeps tools registered but failing until a reload — the manual-recovery behavior.
+
+## Execution topology
+
+Stdio and HTTP deliberately have different owners. A stdio server is resolved and spawned through the mounting plugin context's `ctx.subprocess`; mounting the MCP plugin inside an Agent preset after execution-target routing therefore starts it in that local, pinned SSH, or rootless OCI world. A process-global MCP row starts on the control plane and remains control-plane-owned because one persistent connection cannot belong to several Agent targets. A Streamable HTTP URL is also resolved and reached by the SivitaCode control plane and records `networkOwner: control-plane`; it is never silently reinterpreted as the remote target's `localhost`. Use agent-scoped stdio for target-local MCP today. A future target-local HTTP mode must own an authenticated tunnel/proxy lifecycle explicitly before the schema can admit `execution-target`.
 
 ## Services consumed
 
@@ -113,3 +119,4 @@ Append-only; newly visible content follows the reusable request prefix and does 
 - **Reconnect triggers on transport close** — a crashed stdio child fires it; Streamable HTTP failures surface per request and through the SDK transport's own SSE-stream recovery, so an unreachable HTTP server is retried per call rather than respawned by the supervisor.
 - **Native non-text rendering is lossy** — image, audio, and resource payloads become placeholders in model context even though the execution-local canonical value preserves their JSON blocks. Richer Native multimedia projection is deferred.
 - **Unsupported MCP output schemas are not enforced** — `structuredContent` falls back to `JsonValue` when the advertised schema uses vocabulary outside the harness subset.
+- **Execution-target HTTP is intentionally unavailable** — target-local networking needs an owned tunnel/proxy, cancellation, authentication, and audit boundary; the client rejects that owner instead of accidentally reaching control-plane `localhost`.

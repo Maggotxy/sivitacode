@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-14-sivitacode-product-benchmark.md
+2026-08-14-sivitacode-product-benchmark.md: a2fdabb3a655b285dc0755086166fa820a053479
+2026-08-14-sivitacode-product-benchmark.zh.md: 326c8ce68d7f034bb456589c03b0150be2a47b4a

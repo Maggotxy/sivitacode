@@ -18,6 +18,9 @@
   ],
   "references": [
     {
+      "path": "../../identity/access-control"
+    },
+    {
       "path": "../../attachment/attachment"
     },
     {

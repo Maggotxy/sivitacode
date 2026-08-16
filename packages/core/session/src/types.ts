@@ -1,4 +1,5 @@
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import type { ExecutionTargetId } from '@deepseek-ai/dsh-execution-world'
 import type {
   AssistantMessage,
   CallId,
@@ -96,6 +97,8 @@ export interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /** Durable execution target whose filesystem, processes, terminals, and LSP serve this session. */
+  readonly executionTarget?: ExecutionTargetId
 }
 
 /**
@@ -118,6 +121,7 @@ export interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    readonly executionTarget?: ExecutionTargetId
   }
 }
 

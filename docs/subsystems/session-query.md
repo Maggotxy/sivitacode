@@ -397,6 +397,13 @@ abstract searchEvents( request: SessionEventSearchRequest, exec?: SessionSearchE
 listSessions(signal?: AbortSignal): Promise<SessionRecord[]>
 
 /**
+ * Permanently delete one inactive persisted session.
+ * @param sessionId - exact persisted identity.
+ * @param signal - optional cancellation before destructive storage work starts.
+ */
+deleteSession(sessionId: SessionId, signal?: AbortSignal): Promise<void>
+
+/**
  * Read and replay-validate one complete logical session log without making it live.
  * @param sessionId - live or persisted session id to read.
  * @returns cloned header and complete raw event log from one observation.

@@ -9,6 +9,8 @@
     "musl-gcc",
     "python3",
     "sandbox-exec",
+    "script",
+    "ssh-keygen",
     "tar",
     "taskkill",
     "where.exe"
@@ -148,6 +150,26 @@
       ],
       "ignoreDependencies": [
         "@deepseek-ai/dsh-api-gateway"
+      ]
+    },
+    "packages/container/oci": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/deployment/inventory": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
       ]
     },
     "packages/client/ui-primitives": {
@@ -728,6 +750,7 @@
     },
     "apps/cli": {
       "entry": [
+        "src/sivitacode.ts",
         "tests/**/*.spec.ts",
         "tests/**/*.e2e.ts",
         "tests/**/*.snapshot.ts"
@@ -773,6 +796,11 @@
         "@deepseek-ai/.+"
       ]
     },
+    "packages/bundle/acp-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
     "packages/bundle/headless": {
       "ignoreDependencies": [
         "@deepseek-ai/dsh-code-runtime-worker-thread"
@@ -782,6 +810,15 @@
       "ignoreDependencies": [
         "@deepseek-ai/.+"
       ]
+    },
+    "packages/bundle/ssh-remote": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@deepseek-ai/.+"]
+    },
+    "packages/util/execution-world": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
     }
   }
 }

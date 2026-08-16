@@ -715,7 +715,7 @@ describe('createTransport', () => {
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
     }
-    const transport = createTransport(config)
+    const transport = createTransport(new Context(), config)
     expect(transport).toBeDefined()
     expect(transport).toHaveProperty('start')
     expect(transport).toHaveProperty('close')
@@ -730,7 +730,7 @@ describe('createTransport', () => {
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
     }
-    const transport = createTransport(config)
+    const transport = createTransport(new Context(), config)
     expect(transport).toBeDefined()
     expect(transport).toHaveProperty('start')
     expect(transport).toHaveProperty('close')
@@ -745,10 +745,18 @@ describe('createTransport', () => {
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
     }
-    const transport = createTransport(config)
+    const transport = createTransport(new Context(), config)
     expect(transport).toBeDefined()
     expect(transport).toHaveProperty('start')
     expect(transport).toHaveProperty('close')
+  })
+
+  it('rejects an implicit execution-target HTTP hop instead of using the control-plane network', () => {
+    const config = {
+      transport: 'streamable-http', serverName: 'srv', url: 'http://127.0.0.1:3000/mcp',
+      networkOwner: 'execution-target', headers: {}, toolCallTimeoutMs: 60_000, failOnStartupError: false,
+    } as unknown as Config
+    expect(() => createTransport(new Context(), config)).toThrow(/networkOwner must be "control-plane"/)
   })
 
   it('scrubs sensitive env vars and forwards the rest', () => {
@@ -771,7 +779,7 @@ describe('createTransport', () => {
       }
       // StdioClientTransport keeps its env private; the observable contract is
       // that createTransport(config) returns a transport without throwing.
-      const transport = createTransport(config)
+      const transport = createTransport(new Context(), config)
       expect(transport).toBeDefined()
     } finally {
       delete process.env.SAFE_VAR
@@ -795,7 +803,7 @@ describe('createTransport', () => {
       toolCallTimeoutMs: 60_000,
       failOnStartupError: false,
     }
-    const transport = createTransport(config)
+    const transport = createTransport(new Context(), config)
     expect(transport).toBeDefined()
   })
 })

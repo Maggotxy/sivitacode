@@ -11,6 +11,28 @@
 
 `Requires:` 行列出插件通过 `inject` 注入的服务键：其 `cordis.yml` 树还必须加载这些服务的提供者。范围限定为 harness 层级（`packages/`）；配置树还可能加载的 vendored cordis 插件（`hmr`、控制台日志记录器等）固定为上游源代码（参见 [vendoring policy](../vendor/README.md)），未收录于此目录。
 
+<a id="deepseek-aidsh-access-control"></a>
+
+## `@deepseek-ai/dsh-access-control`
+
+需要：`storageDomain`
+
+```ts config-catalog
+/** Service configuration. */
+export interface Config {
+  /** Username used only to create the first administrator in an empty store. */
+  bootstrapUsername?: string
+  /** Password used only to create the first administrator in an empty store. */
+  bootstrapPassword?: string
+  /** Maximum inactivity before a session expires. */
+  idleTimeoutMinutes?: number
+  /** Maximum session lifetime from creation. */
+  absoluteTimeoutHours?: number
+}
+```
+
+来源：[`packages/identity/access-control/src/index.ts:61`](../packages/identity/access-control/src/index.ts)
+
 <a id="deepseek-aidsh-acp"></a>
 
 ## `@deepseek-ai/dsh-acp`
@@ -24,6 +46,8 @@ export interface AcpConfig {
   provider?: string
   /** Model name for created agents. */
   model?: string
+  /** Exact execution-target ids trusted ACP clients may select; `*` explicitly permits every registered target. */
+  executionTargets?: string[]
   /** Runtime-only transport override; production uses stdio. */
   stream?: Stream
 }
@@ -31,7 +55,7 @@ export interface AcpConfig {
 
 依赖：`Stream`（`@agentclientprotocol/sdk`）
 
-来源：[`packages/acp/acp/src/index.ts:70`](../packages/acp/acp/src/index.ts)
+来源：[`packages/acp/acp/src/index.ts:111`](../packages/acp/acp/src/index.ts)
 
 <a id="deepseek-aidsh-acp-demo"></a>
 
@@ -164,7 +188,7 @@ export interface Config {
 
 依赖：[`AgentOptions`](subsystems/core.md) · [`SessionId`](subsystems/core.md)
 
-来源：[`packages/core/agent-loop/src/index.ts:255`](../packages/core/agent-loop/src/index.ts)
+来源：[`packages/core/agent-loop/src/index.ts:259`](../packages/core/agent-loop/src/index.ts)
 
 <a id="deepseek-aidsh-agent-presets"></a>
 
@@ -412,7 +436,7 @@ export interface ConnectionConfig {
 }
 ```
 
-来源：[`packages/client/connection/src/index.ts:50`](../packages/client/connection/src/index.ts)
+来源：[`packages/client/connection/src/index.ts:51`](../packages/client/connection/src/index.ts)
 
 <a id="deepseek-aidsh-client-hmr"></a>
 
@@ -585,7 +609,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/e2b/e2b/src/index.ts:43`](../packages/e2b/e2b/src/index.ts)
+来源：[`packages/e2b/e2b/src/index.ts:44`](../packages/e2b/e2b/src/index.ts)
 
 <a id="deepseek-aidsh-fs-local"></a>
 
@@ -604,7 +628,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/fs/fs-local/src/index.ts:41`](../packages/fs/fs-local/src/index.ts)
+来源：[`packages/fs/fs-local/src/index.ts:42`](../packages/fs/fs-local/src/index.ts)
 
 <a id="deepseek-aidsh-fs-sandbox"></a>
 
@@ -625,6 +649,24 @@ export type Config = LocalConfig
 依赖：[`LocalConfig`](#deepseek-aidsh-fs-local)
 
 来源：[`packages/fs/fs-sandbox/src/index.ts:49`](../packages/fs/fs-sandbox/src/index.ts)
+
+<a id="deepseek-aidsh-fs-ssh"></a>
+
+## `@deepseek-ai/dsh-fs-ssh`
+
+需要：`ssh`
+
+```ts config-catalog
+/** SSH filesystem workspace mapping configuration. */
+export interface Config {
+  /** Remote project root corresponding to the control-plane workspace. */
+  cwd?: string
+  /** Control-plane path represented by `cwd`; defaults to process.cwd(). */
+  localAnchor?: string
+}
+```
+
+来源：[`packages/ssh/fs-ssh/src/index.ts:18`](../packages/ssh/fs-ssh/src/index.ts)
 
 <a id="deepseek-aidsh-goal"></a>
 
@@ -757,6 +799,22 @@ export interface Config {
 
 来源：[`packages/host/apiproxy/src/index.ts:41`](../packages/host/apiproxy/src/index.ts)
 
+<a id="deepseek-aidsh-host-directory-picker-auto"></a>
+
+## `@deepseek-ai/dsh-host-directory-picker-auto`
+
+需要：`webServer` · `loader`
+
+```ts config-catalog
+/** Adaptive chooser configuration. */
+export interface Config {
+  /** Select the in-app browser when an authority outside the host can reach a loopback-bound server. @default false */
+  remoteBrowserAccess?: boolean
+}
+```
+
+来源：[`packages/host/directory-picker-auto/src/index.ts:33`](../packages/host/directory-picker-auto/src/index.ts)
+
 <a id="deepseek-aidsh-host-directory-picker-browse"></a>
 
 ## `@deepseek-ai/dsh-host-directory-picker-browse`
@@ -801,7 +859,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/host/webserver/src/index.ts:45`](../packages/host/webserver/src/index.ts)
+来源：[`packages/host/webserver/src/index.ts:51`](../packages/host/webserver/src/index.ts)
 
 <a id="deepseek-aidsh-invariants"></a>
 
@@ -1210,7 +1268,7 @@ export interface LspLocalServerConfig {
 
 ## `@deepseek-ai/dsh-mcp-client`
 
-需要：`tools`
+需要：`tools` · `subprocess`
 
 ```ts config-catalog
 /** Configuration for one stdio or Streamable HTTP MCP server. */
@@ -1234,6 +1292,8 @@ export interface StdioConfig {
   env: Record<string, string>
   /** Working directory for the child process. */
   cwd: string
+  /** Grace period before forced process-tree termination. */
+  shutdownGraceMs?: number
   /** Per-tool-call timeout in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
@@ -1254,6 +1314,8 @@ export interface StreamableHttpConfig {
   serverName: string
   /** MCP endpoint URL. */
   url: string
+  /** Network namespace that resolves and reaches `url`; currently the SivitaCode control plane. */
+  networkOwner?: 'control-plane'
   /** Additional headers attached to MCP requests. */
   headers: Record<string, string>
   /** Per-tool-call timeout in milliseconds. */
@@ -1277,7 +1339,7 @@ export interface ReconnectConfig {
 }
 ```
 
-来源：[`packages/mcp/mcp-client/src/index.ts:98`](../packages/mcp/mcp-client/src/index.ts)
+来源：[`packages/mcp/mcp-client/src/index.ts:102`](../packages/mcp/mcp-client/src/index.ts)
 
 <a id="deepseek-aidsh-message-feedback"></a>
 
@@ -1294,6 +1356,34 @@ export interface Config {
 ```
 
 来源：[`packages/feedback/message-feedback/src/index.ts:49`](../packages/feedback/message-feedback/src/index.ts)
+
+<a id="deepseek-aidsh-oci"></a>
+
+## `@deepseek-ai/dsh-oci`
+
+```ts config-catalog
+/** OCI owner configuration. */
+export interface Config {
+  /** Exact runtime executable; only Docker and Podman CLI protocols are supported. */
+  runtime: 'docker' | 'podman'
+  /** Immutable image reference; deployments should use a digest. */
+  image: string
+  /** Existing host project directory bind-mounted at the identical container path. */
+  workspace: string
+  /** Disable container networking unless explicitly enabled. */
+  network?: 'none' | 'host'
+  /** Require the runtime to prove rootless operation. */
+  requireRootless?: boolean
+  /** Upper bound for runtime inspection and container lifecycle commands. */
+  lifecycleTimeoutMs?: number
+  /** Memory limit accepted by Docker and Podman. */
+  memory?: string
+  /** CPU quota accepted by Docker and Podman. */
+  cpus?: number
+}
+```
+
+来源：[`packages/container/oci/src/index.ts:13`](../packages/container/oci/src/index.ts)
 
 <a id="deepseek-aidsh-permission-presets"></a>
 
@@ -1544,7 +1634,7 @@ export interface JsonRpcConfig {
 
 依赖：`Readable`（`node:stream`）· `Writable`（`node:stream`）
 
-来源：[`packages/sdk/server/src/index.ts:29`](../packages/sdk/server/src/index.ts)
+来源：[`packages/sdk/server/src/index.ts:25`](../packages/sdk/server/src/index.ts)
 
 <a id="deepseek-aidsh-session-persistence-jsonl"></a>
 
@@ -1861,7 +1951,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/skill/skill/src/index.ts:279`](../packages/skill/skill/src/index.ts)
+来源：[`packages/skill/skill/src/index.ts:281`](../packages/skill/skill/src/index.ts)
 
 <a id="deepseek-aidsh-skill-filesystem"></a>
 
@@ -1899,7 +1989,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/skill/skill-filesystem/src/index.ts:49`](../packages/skill/skill-filesystem/src/index.ts)
+来源：[`packages/skill/skill-filesystem/src/index.ts:50`](../packages/skill/skill-filesystem/src/index.ts)
 
 <a id="deepseek-aidsh-spill-local"></a>
 
@@ -1938,6 +2028,32 @@ export interface Config {
 ```
 
 来源：[`packages/spill/spill-policy/src/index.ts:60`](../packages/spill/spill-policy/src/index.ts)
+
+<a id="deepseek-aidsh-ssh"></a>
+
+## `@deepseek-ai/dsh-ssh`
+
+```ts config-catalog
+/** OpenSSH connection configuration. */
+export interface Config {
+  /** DNS name or IP address of the pinned server. */
+  host: string
+  /** SSH port. */
+  port?: number
+  /** Remote account name. */
+  username: string
+  /** Exact OpenSSH public host key, for example `ssh-ed25519 AAAA…`. */
+  pinnedHostKey: string
+  /** Optional private-key path; omission uses the operator's SSH agent. */
+  identityFile?: string
+  /** Connection establishment deadline. */
+  connectTimeoutMs?: number
+  /** Server-alive interval for the shared master. */
+  keepAliveSeconds?: number
+}
+```
+
+来源：[`packages/ssh/ssh/src/index.ts:20`](../packages/ssh/ssh/src/index.ts)
 
 <a id="deepseek-aidsh-storage-domain"></a>
 
@@ -2218,6 +2334,26 @@ export interface Config {
 ```
 
 来源：[`packages/e2b/subprocess-e2b/src/index.ts:25`](../packages/e2b/subprocess-e2b/src/index.ts)
+
+<a id="deepseek-aidsh-subprocess-ssh"></a>
+
+## `@deepseek-ai/dsh-subprocess-ssh`
+
+需要：`ssh`
+
+```ts config-catalog
+/** SSH subprocess provider configuration. */
+export interface Config {
+  /** Remote process-liveness polling cadence. */
+  pollMs?: number
+  /** Remote project root corresponding to the control-plane workspace. */
+  cwd?: string
+  /** Control-plane path represented by `cwd`; defaults to process.cwd(). */
+  localAnchor?: string
+}
+```
+
+来源：[`packages/ssh/subprocess-ssh/src/index.ts:20`](../packages/ssh/subprocess-ssh/src/index.ts)
 
 <a id="deepseek-aidsh-system-prompt"></a>
 
@@ -2886,6 +3022,8 @@ export interface Config {
   surfaceContext: boolean
   /** Explicit `--trusted-host` authorities from this invocation. */
   trustedHosts: string[]
+  /** Canonical public HTTPS origin, when a reverse proxy fronts this process. */
+  publicOrigin?: string
 }
 ```
 
@@ -3027,6 +3165,7 @@ export interface Config {
 
 这些插件通过 `cordis.yml` 中不含 `config:` 块的条目加载；它们未声明任何配置接口。
 
+- `@deepseek-ai/dsh-acp-app` — 需要 `cmdlineArgs`（[`packages/bundle/acp-app/src/index.ts`](../packages/bundle/acp-app/src/index.ts)）
 - `@deepseek-ai/dsh-agent`（[`packages/core/agent/src/index.ts`](../packages/core/agent/src/index.ts)）
 - `@deepseek-ai/dsh-api-gateway` — 需要 `typert`（[`packages/api/gateway/src/index.ts`](../packages/api/gateway/src/index.ts)）
 - `@deepseek-ai/dsh-api-remotes`（[`packages/api/remotes/src/index.ts`](../packages/api/remotes/src/index.ts)）
@@ -3067,10 +3206,13 @@ export interface Config {
 - `@deepseek-ai/dsh-command-goal` — 需要 `commands` · `goals`（[`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts)）
 - `@deepseek-ai/dsh-commands`（[`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts)）
 - `@deepseek-ai/dsh-cordis-client-runner`（[`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts)）
+- `@deepseek-ai/dsh-deployment-inventory` — 需要 `storageDomain` · `accessControl` · `credentials`（[`packages/deployment/inventory/src/index.ts`](../packages/deployment/inventory/src/index.ts)）
+- `@deepseek-ai/dsh-execution-world`（[`packages/util/execution-world/src/index.ts`](../packages/util/execution-world/src/index.ts)）
+- `@deepseek-ai/dsh-execution-world-coherence` — 需要 `fs` · `subprocess`（[`packages/guard/execution-world-coherence/src/index.ts`](../packages/guard/execution-world-coherence/src/index.ts)）
 - `@deepseek-ai/dsh-fs-e2b` — 需要 `e2b`（[`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts)）
 - `@deepseek-ai/dsh-fs-observation-policy`（[`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts)）
+- `@deepseek-ai/dsh-git-worktree` — 需要 `subprocess`（[`packages/git/worktree/src/index.ts`](../packages/git/worktree/src/index.ts)）
 - `@deepseek-ai/dsh-goal-round-driver` — 需要 `agents` · `goals` · `sessions`（[`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts)）
-- `@deepseek-ai/dsh-host-directory-picker-auto` — 需要 `webServer` · `loader`（[`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker-native`（[`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts)）
 - `@deepseek-ai/dsh-host-plugin-inventory` — 需要 `loader`（[`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts)）
 - `@deepseek-ai/dsh-llm`（[`packages/llm/llm/src/index.ts`](../packages/llm/llm/src/index.ts)）
@@ -3145,6 +3287,7 @@ export interface Config {
 - `@deepseek-ai/dsh-sdk-protocol`（[`packages/sdk/protocol/src/index.ts`](../packages/sdk/protocol/src/index.ts)）
 - `@deepseek-ai/dsh-session-telemetry`（[`packages/session/session-telemetry/src/index.ts`](../packages/session/session-telemetry/src/index.ts)）
 - `@deepseek-ai/dsh-session-title-llm`（[`packages/session/session-title-llm/src/index.ts`](../packages/session/session-title-llm/src/index.ts)）
+- `@deepseek-ai/dsh-ssh-remote`（[`packages/bundle/ssh-remote/src/index.ts`](../packages/bundle/ssh-remote/src/index.ts)）
 - `@deepseek-ai/dsh-subagent-in-process-driver`（[`packages/subagent/subagent-in-process-driver/src/index.ts`](../packages/subagent/subagent-in-process-driver/src/index.ts)）
 - `@deepseek-ai/dsh-timeout`（[`packages/util/timeout/src/index.ts`](../packages/util/timeout/src/index.ts)）
 - `@deepseek-ai/dsh-typert-generator`（[`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts)）

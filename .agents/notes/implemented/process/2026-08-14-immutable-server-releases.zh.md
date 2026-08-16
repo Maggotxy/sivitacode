@@ -18,7 +18,7 @@ dsh 发布 workflow 会从无需凭据的 npm pack 输出构建四种原生归�
 
 Release 位于 `<root>/releases/<identity>`。`current` 和 `previous` 是通过同文件系统 rename 切换的相对符号链接。安装 staging 位于部署根目录，因此发布和链接替换在该文件系统上是原子的。任何检查失败都不会改变 `current`。回滚会重新验证并 smoke `previous`，再交换两个链接。安装器保留所有 release，且绝不编辑位于 `SIVITACODE_HOME` 的产品状态。
 
-无 root 引导脚本同时固定 release 和所下载完整安装器的 SHA-256。它检测宿主机、获取匹配的归档与 checksum，再委托该安装器执行，而不是实现第二条激活路径。Docker 镜像也通过同一个安装器使用同一不可变归档。私有 Linux Compose 使用 host 网络，以保留 Web 仅监听回环的默认行为。公网 Compose 让应用只绑定到固定的私有容器子网，要求持久认证，只信任来自该子网的转发请求信息，并由 Caddy 提供自动 HTTPS。
+无 root 引导脚本同时固定 release 和所下载完整安装器的 SHA-256。它检测宿主机、获取匹配的归档与 checksum，再委托该安装器执行，而不是实现第二条激活路径。零依赖 `sivitacode` npm 包会固定并验证该引导脚本，复用已经激活的匹配核心，否则先委托安装，再把参数转发给稳定命令。Docker 镜像也通过同一个安装器使用同一不可变归档。私有 Linux Compose 使用 host 网络，以保留 Web 仅监听回环的默认行为。公网 Compose 让应用只绑定到固定的私有容器子网，要求持久认证，只信任来自该子网的转发请求信息，并由 Caddy 提供自动 HTTPS。
 
 ## Alternatives considered
 
@@ -26,7 +26,7 @@ Release 位于 `<root>/releases/<identity>`。`current` 和 `previous` 是通过
 
 **在每台服务器上从公共 registry 安装。** 这会让激活依赖凭据、registry 可用性、可变 dist-tag 和下载后的解析过程，也会使服务器字节脱离发布工作流已经检查的 tarball。
 
-**把内部 package 依赖图发布成 npm 一键安装。** 这会在已验证的 release 构建之外重复解析依赖，并把实现 package 暴露为公开兼容性契约。未来可以提供只负责下载固定 Release 产物的轻量 npm launcher，但 npm 不作为产品字节来源。
+**把内部 package 依赖图发布成 npm 一键安装。** 这会在已验证的 release 构建之外重复解析依赖，并把实现 package 暴露为公开兼容性契约。选定的轻量 npm launcher 改为下载固定 Release 引导脚本，因此 npm 不作为产品字节来源。
 
 **从 bridge 网络暴露未经认证的应用端口。** 这会削弱仅监听回环的安全默认值，并可能让部署意外暴露到公网。私有 composition 通过 host 网络保留回环行为；公网 composition 则要求认证和显式 TLS origin。
 
@@ -40,4 +40,4 @@ Release 位于 `<root>/releases/<identity>`。`current` 和 `previous` 是通过
 
 原子激活本身不会重启 systemd 或提供连接 drain；运维人员需要把安装器与部署 inventory 的 drain、verify、rollback 和 restore 生命周期组合使用。所有 release 都会保留并占用磁盘，直到运维人员通过另行审查的流程删除非活动 release。
 
-Shell 引导脚本要求 Node.js 22.19 或更高版本。当前预览版只发布 Linux x64，因此检测到但没有匹配产物的宿主机会在激活前失败。私有 Compose 依赖 Linux host 网络。公网 Compose 要求一个 DNS 名称、可从公网访问的 80 和 443 端口，以及运维人员提供的管理员密码。
+Shell 与 npm 引导脚本要求 Node.js 22.19 或更高版本。npm 命令还要求 `sh`、`curl` 与 `tar`，因为它有意保留共用安装路径。当前预览版只发布 Linux x64，因此检测到但没有匹配产物的宿主机会在激活前失败。私有 Compose 依赖 Linux host 网络。公网 Compose 要求一个 DNS 名称、可从公网访问的 80 和 443 端口，以及运维人员提供的管理员密码。

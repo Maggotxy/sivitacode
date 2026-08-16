@@ -8,6 +8,7 @@ SivitaCode 服务器产物是从通过 packed-install 发布检查的同一批 n
 
 | 需求 | 方式 |
 |---|---|
+| 最快首次运行 | `npx sivitacode`；经过验证的 npm 发现启动器 |
 | 快速安装到本机用户 | 固定版本的 `install.sh`；需要 Node.js，无需 sudo |
 | 私有 Linux 容器 | `compose.yml`；仅回环的 host 网络 |
 | 带自动 HTTPS 的公网服务器 | `compose.public.yml`；需要 Caddy、DNS 和引导密码 |
@@ -15,6 +16,17 @@ SivitaCode 服务器产物是从通过 packed-install 发布检查的同一批 n
 | 贡献者 checkout | 根目录 [README](../README.md#run-from-source) |
 
 所有打包安装方式都使用同一份不可变服务器归档和 checksum，不会分别解析内部 npm 依赖图。
+
+## npm 发现启动器
+
+零依赖的 `sivitacode` npm 包会下载并认证固定的 Release 引导脚本；匹配的核心已经激活时会跳过安装，并把所有参数转发给稳定的已安装命令。没有参数时，它会启动 Web UI。
+
+```sh
+npx sivitacode
+npx sivitacode --version
+```
+
+如需持久 launcher，请使用 `npm install --global sivitacode`。npm 提供最短发现路径；不可变 Release 归档仍是产品字节来源和回滚边界。
 
 ## 无 root 用户安装
 

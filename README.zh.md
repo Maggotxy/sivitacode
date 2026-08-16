@@ -12,7 +12,17 @@ SivitaCode 目前处于开发者预览阶段。首次稳定版本发布前，上
 
 ## 运行
 
-### 一行命令安装
+### 使用 npm 最快启动
+
+轻量 `sivitacode` npm 包会验证并运行所有打包部署方式共用的固定 GitHub Release 安装器。没有参数时，它会无需 sudo 安装当前核心并启动 Web UI：
+
+```sh
+npx sivitacode
+```
+
+其他参数会转发给已安装产品，例如 `npx sivitacode --version` 或 `npx sivitacode run "inspect this repository"`。如需持久 launcher，请使用 `npm install --global sivitacode`。npm 只承担发现入口，不会再次构建内部 package 依赖图。
+
+### 直接使用一行命令安装
 
 唯一运行时前置条件是 Node.js 22.19 或更高版本。固定版本的引导脚本会检测平台与 CPU，认证下载的安装器和服务器归档，无需 sudo 即可安装到 `~/.local/share/sivitacode`，并在 `~/.local/bin` 下发布 `sivitacode`：
 
@@ -84,7 +94,7 @@ SivitaCode 将 profile、设置、凭据和会话保存在 `~/.sivitacode`。如
 
 Web 和无头模式共用一个插件组合的 Agent 核心。文件系统、Shell、终端、后台任务、LSP、MCP stdio、会话、工具、LLM 和子 Agent 共用所选执行世界。Web Inventory 可以在本机、精确固定主机密钥的 SSH 服务器或 rootless Docker/Podman 容器上打开会话，且基于子进程的工具不会绕回控制机。部署计划会保留目标 revision、要求独立生产审批、限制输出，并通过同一受管子进程 provider 仅执行一次。安全 Git 工作树创建在所选目标 workspace 内。
 
-GitHub Releases 是部署权威。npm 发布保持可选，因为在新 scope 下分发完整内部 `@deepseek-ai/dsh-*` 依赖图会弱化来源信息，并形成长期上游合并成本；未来的 `sivitacode` npm 包可以提供验证摘要的启动器，但不会替代 release 归档。
+GitHub Releases 是部署权威。公开的 `sivitacode` npm 包有意只作为这些产物的 checksum 验证启动器，而不会重新发布完整内部 `@deepseek-ai/dsh-*` 依赖图。这样既能提供方便的 `npx sivitacode`，也不会弱化来源信息或把上游 package 拓扑变成 SivitaCode 兼容性契约。
 
 本仓库有意保留上游内部 `@deepseek-ai/dsh-*` 包名。这能清晰保留来源、避免把上游成果描述为 SivitaCode 原创，并使上游安全更新能够被选择性审查。SivitaCode 自研功能使用独立产品身份，并在文档中明确说明。
 

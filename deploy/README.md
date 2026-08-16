@@ -8,6 +8,7 @@ SivitaCode server artifacts are self-contained production dependency trees built
 
 | Need | Route |
 |---|---|
+| Fastest first run | `npx sivitacode`; verified npm discovery launcher |
 | Fast local user install | Version-pinned `install.sh`; Node.js required, no sudo |
 | Private Linux container | `compose.yml`; loopback-only host networking |
 | Public server with automatic HTTPS | `compose.public.yml`; Caddy, DNS, and a bootstrap password |
@@ -15,6 +16,17 @@ SivitaCode server artifacts are self-contained production dependency trees built
 | Contributor checkout | Root [README](../README.md#run-from-source) |
 
 All packaged routes consume the same immutable server archive and checksum. They do not resolve the internal npm dependency graph independently.
+
+## npm discovery launcher
+
+The zero-dependency `sivitacode` npm package downloads and authenticates the pinned Release bootstrap, skips installation when the matching core is already active, and forwards every argument to the stable installed command. With no arguments it starts the Web UI.
+
+```sh
+npx sivitacode
+npx sivitacode --version
+```
+
+Use `npm install --global sivitacode` for a persistent launcher. npm provides the shortest discovery path; the immutable Release archive remains the source of product bytes and the rollback boundary.
 
 ## Rootless user install
 

@@ -12,7 +12,17 @@ SivitaCode is in developer preview. Pin deployments to a release because its ups
 
 ## Run
 
-### One-line user install
+### Fastest start with npm
+
+The small `sivitacode` npm package verifies and runs the same pinned GitHub Release installer used by every packaged route. With no arguments it installs the current core without sudo and starts the Web UI:
+
+```sh
+npx sivitacode
+```
+
+Arguments are forwarded to the installed product, for example `npx sivitacode --version` or `npx sivitacode run "inspect this repository"`. Use `npm install --global sivitacode` for a persistent launcher. npm is a discovery layer rather than a second build of the internal package graph.
+
+### Direct one-line user install
 
 Node.js 22.19 or newer is the only runtime prerequisite. The version-pinned bootstrap detects the platform and CPU, authenticates the downloaded installer and server archive, installs without sudo under `~/.local/share/sivitacode`, and publishes `sivitacode` under `~/.local/bin`:
 
@@ -84,7 +94,7 @@ SivitaCode stores profiles, settings, credentials, and sessions under `~/.sivita
 
 Web and headless modes use one plugin-composed agent core. Filesystem, shell, terminal, jobs, LSP, MCP stdio, sessions, tools, LLMs, and subagents share a selected execution world. The Web inventory can open sessions on the local host, an exact-host-key-pinned SSH server, or a rootless Docker/Podman container without routing subprocess-backed tools back to the control machine. Deployment plans retain target revisions, enforce separate production approval, bound output, and execute once through the same managed subprocess provider. Safe Git worktrees are created inside each selected target workspace.
 
-GitHub Releases are the deployment authority. npm publication remains optional because distributing the complete internal `@deepseek-ai/dsh-*` graph under another scope would weaken provenance and create a permanent upstream merge cost; a future `sivitacode` npm package may provide a checksum-verifying launcher without replacing release archives.
+GitHub Releases are the deployment authority. The public `sivitacode` npm package is deliberately a checksum-verifying launcher for those assets rather than a republished copy of the complete internal `@deepseek-ai/dsh-*` graph. This keeps `npx sivitacode` convenient without weakening provenance or making the upstream package topology a SivitaCode compatibility contract.
 
 The current repository intentionally keeps upstream internal `@deepseek-ai/dsh-*` package names. This preserves traceable provenance, avoids pretending upstream work is original SivitaCode code, and keeps selective upstream security updates reviewable. SivitaCode-owned features use their own product identity and are documented as such.
 

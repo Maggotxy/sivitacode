@@ -12,6 +12,28 @@ SivitaCode is in developer preview. Pin deployments to a release because its ups
 
 ## Run
 
+### One-line user install
+
+Node.js 22.19 or newer is the only runtime prerequisite. The version-pinned bootstrap detects the platform and CPU, authenticates the downloaded installer and server archive, installs without sudo under `~/.local/share/sivitacode`, and publishes `sivitacode` under `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Maggotxy/sivitacode/sivitacode-install-v0.1.0-preview.1/deploy/install.sh | sh
+~/.local/bin/sivitacode web
+```
+
+Rerun the command to upgrade atomically. The installer prints the local rollback command. The current preview release provides Linux x64; detection fails without changing the active installation when a matching release asset is unavailable.
+
+### One-command Docker Compose
+
+Linux users with Docker Compose v2 can run the private loopback deployment below from the project directory they want SivitaCode to edit. It builds from the same authenticated release archive, persists SivitaCode state in a named volume, mounts the current directory as `/workspace`, and serves `http://127.0.0.1:3080`:
+
+```sh
+curl -fsSLO https://github.com/Maggotxy/sivitacode/releases/download/dsh-v0.1.0-rc.5-sivitacode.1/compose.yml
+docker compose -f compose.yml up -d --build
+```
+
+The [deployment reference](deploy/README.md) also provides a public HTTPS Compose route with Caddy, a direct Docker build, systemd installation, offline installation, upgrades, and rollback.
+
 ### Install a published server release
 
 The supported public distribution is a verified GitHub Release archive for `linux-x64`, `linux-arm64`, `darwin-x64`, or `darwin-arm64`. It requires Node.js 22.19 or newer on the destination, but no source checkout, pnpm, compiler, or npm registry access. Download the archive, its adjacent `.sha256`, and `install-sivitacode.mjs` from the same [release](https://github.com/Maggotxy/sivitacode/releases), then install them:

@@ -1,0 +1,22 @@
+services:
+  sivitacode:
+    build:
+      context: https://github.com/Maggotxy/sivitacode.git#sivitacode-install-v0.1.0-preview.1
+      dockerfile: deploy/Dockerfile
+    # Host networking preserves the application's loopback-only private default.
+    network_mode: host
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      SIVITACODE_HOME: /var/lib/sivitacode
+      DSH_TELEMETRY_DISABLED: '1'
+    volumes:
+      - sivitacode-data:/var/lib/sivitacode
+      - ${SIVITACODE_WORKSPACE:-.}:/workspace
+    working_dir: /workspace
+    restart: unless-stopped
+
+volumes:
+  sivitacode-data:

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-14-immutable-server-releases.md
-2026-08-14-immutable-server-releases.md: 3cbe411d6405d7e15f1af7cea55d2adaedf58d85
-2026-08-14-immutable-server-releases.zh.md: 791bf756f1b1fbae82e5af6c89ceddc29353c654
+2026-08-14-immutable-server-releases.md: 2f51da94b15200ce4ced833a90db91a6f3f2274e
+2026-08-14-immutable-server-releases.zh.md: 29efe406801b3dedfae47dd0f46d6a90a930e733

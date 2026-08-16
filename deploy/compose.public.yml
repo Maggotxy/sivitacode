@@ -1,0 +1,51 @@
+services:
+  sivitacode:
+    build:
+      context: https://github.com/Maggotxy/sivitacode.git#sivitacode-install-v0.1.0-preview.1
+      dockerfile: deploy/Dockerfile
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command: [web, --host, 0.0.0.0, --trusted-host, '${SIVITACODE_DOMAIN:?set SIVITACODE_DOMAIN}']
+    environment:
+      SIVITACODE_HOME: /var/lib/sivitacode
+      SIVITACODE_WEB_ADMIN_USERNAME: ${SIVITACODE_WEB_ADMIN_USERNAME:-admin}
+      SIVITACODE_WEB_PASSWORD: ${SIVITACODE_WEB_PASSWORD:?set SIVITACODE_WEB_PASSWORD}
+      SIVITACODE_WEB_PUBLIC_ORIGIN: https://${SIVITACODE_DOMAIN:?set SIVITACODE_DOMAIN}
+      SIVITACODE_WEB_TRUSTED_PROXY_CIDRS: 172.31.250.0/24
+      DSH_TELEMETRY_DISABLED: '1'
+    volumes:
+      - sivitacode-data:/var/lib/sivitacode
+      - ${SIVITACODE_WORKSPACE:-.}:/workspace
+    working_dir: /workspace
+    networks: [sivitacode]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10-alpine
+    command: [caddy, reverse-proxy, --from, '${SIVITACODE_DOMAIN:?set SIVITACODE_DOMAIN}', --to, sivitacode:3080]
+    depends_on: [sivitacode]
+    cap_drop: [ALL]
+    # Only the TLS edge needs permission to bind privileged ports 80 and 443.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [sivitacode]
+    restart: unless-stopped
+
+networks:
+  sivitacode:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  sivitacode-data:
+  caddy-data:
+  caddy-config:

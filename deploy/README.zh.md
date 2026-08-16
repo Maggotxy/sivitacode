@@ -4,7 +4,65 @@
 
 SivitaCode 服务器产物是从通过 packed-install 发布检查的同一批 npm tarball 构建的自包含生产依赖树。服务器只需安装受支持的 Node runtime，不需要源码 checkout、Corepack、pnpm、编译器或 registry 访问。每个归档均包含 MIT 许可证、第三方声明、目标平台与架构、固定的上游 commit，以及逐文件 SHA-256 manifest。
 
-每个 `dsh-v*` 标签都会在 [GitHub Releases](https://github.com/Maggotxy/sivitacode/releases) 发布全部四种经过验证的归档、对应摘要文件和本仓库安装器。release 产物而非内部 npm 包依赖图，是受支持的公开安装输入。
+## 安装方式
+
+| 需求 | 方式 |
+|---|---|
+| 快速安装到本机用户 | 固定版本的 `install.sh`；需要 Node.js，无需 sudo |
+| 私有 Linux 容器 | `compose.yml`；仅回环的 host 网络 |
+| 带自动 HTTPS 的公网服务器 | `compose.public.yml`；需要 Caddy、DNS 和引导密码 |
+| 离线或受管服务器 | Release 归档与 `install-sivitacode.mjs` |
+| 贡献者 checkout | 根目录 [README](../README.md#run-from-source) |
+
+所有打包安装方式都使用同一份不可变服务器归档和 checksum，不会分别解析内部 npm 依赖图。
+
+## 无 root 用户安装
+
+固定版本的引导脚本会验证下载的 Node 安装器自身，检测 Linux 或 macOS 以及 x64 或 arm64，下载匹配的归档和 checksum，再把验证与原子激活委托给 `install-sivitacode.mjs`。默认 release 目录是 `~/.local/share/sivitacode`，命令目录是 `~/.local/bin`。如需覆盖，请在管道前设置 `SIVITACODE_INSTALL_ROOT` 或 `SIVITACODE_BIN_DIR`。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Maggotxy/sivitacode/sivitacode-install-v0.1.0-preview.1/deploy/install.sh | sh
+~/.local/bin/sivitacode web
+```
+
+重新运行该命令会通过同一原子激活路径升级。当前预览 release 发布 Linux x64 产物；没有匹配产物的主机会在激活前失败。
+
+## 私有 Linux Docker Compose
+
+把 Compose 定义下载到允许 agent 编辑的项目目录。该定义使用 host 网络，使 SivitaCode 保持仅回环的安全默认值；当前目录会挂载到 `/workspace`，产品状态持久化在 `sivitacode-data` volume 中。
+
+```sh
+curl -fsSLO https://github.com/Maggotxy/sivitacode/releases/download/dsh-v0.1.0-rc.5-sivitacode.1/compose.yml
+docker compose -f compose.yml up -d --build
+```
+
+打开 `http://127.0.0.1:3080`；Docker 位于远程服务器时也可通过 SSH 本地转发访问。该方式要求 Linux host 网络；macOS 用户应使用无 root 安装器或公网 HTTPS composition。
+
+## 公网 HTTPS Docker Compose
+
+把一个 DNS 名称指向服务器，允许入站 TCP 80 和 443，再从允许 agent 编辑的项目目录运行公网 composition。Caddy 会获取并续期证书。SivitaCode 只能从专用容器网络访问，要求持久管理员登录，并且只信任来自该网络固定 CIDR 的转发请求信息。
+
+```sh
+curl -fsSLO https://github.com/Maggotxy/sivitacode/releases/download/dsh-v0.1.0-rc.5-sivitacode.1/compose.public.yml
+SIVITACODE_DOMAIN=code.example.com \
+SIVITACODE_WEB_PASSWORD='replace-with-at-least-12-characters' \
+docker compose -f compose.public.yml up -d --build
+```
+
+保留 Compose 文件和具名 volume 以便升级；改变固定构建输入后，重新运行 `docker compose ... up -d --build`。不要把 secret 写入 Compose 文件或仓库。
+
+## 直接构建 Docker
+
+Dockerfile 会在镜像构建期间安装并验证 release，而不是复制源码 checkout。以下直接 Linux 运行使用 host 网络以保留私有回环绑定。
+
+```sh
+docker build -t sivitacode -f deploy/Dockerfile https://github.com/Maggotxy/sivitacode.git#sivitacode-install-v0.1.0-preview.1
+docker run --rm --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges -v "$PWD:/workspace" -v sivitacode-data:/var/lib/sivitacode sivitacode
+```
+
+## 已验证的 release 产物
+
+发布 workflow 的目标是在 [GitHub Releases](https://github.com/Maggotxy/sivitacode/releases) 发布四种经过验证的归档、对应摘要文件和本仓库安装器。当前 `dsh-v0.1.0-rc.5-sivitacode.1` 预览版仅包含 Linux x64；在仓库获准更新发布 workflow 前，其余原生 leg 仍处于受限状态。release 产物而非内部 npm 包依赖图，是受支持的公开安装输入。
 
 必须在与目标服务器相同的平台和 CPU 架构上构建并验证 npm 输入，再生成平台专用归档。构建 Linux launcher 需要原生 musl 工具链（Ubuntu 上为 `musl-tools`）；macOS 可复现归档需要 GNU tar（`brew install gnu-tar`）。生产服务器不需要这些工具。`--from` 同时接收 dsh、vendored framework 和 Landlock 的打包目录；所有提供的 tarball 都会以本地字节安装到隔离 staging 树中。下面的命令序列适用于 Linux；macOS 会打包可移植 Landlock entry 而不是 launcher，并在运行时使用 Seatbelt。
 

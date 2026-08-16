@@ -4,7 +4,65 @@ English | [中文](README.zh.md)
 
 SivitaCode server artifacts are self-contained production dependency trees built from the same npm tarballs that pass the packed-install release check. They require a supported Node runtime but no source checkout, Corepack, pnpm, compiler, or registry access on the server. Each archive carries the MIT license, third-party notices, target platform and architecture, pinned upstream commit, and a per-file SHA-256 manifest.
 
-Each `dsh-v*` tag publishes all four verified archives, their checksum files, and this repository's installer on [GitHub Releases](https://github.com/Maggotxy/sivitacode/releases). Release assets, rather than the internal npm package graph, are the supported public installation input.
+## Installation routes
+
+| Need | Route |
+|---|---|
+| Fast local user install | Version-pinned `install.sh`; Node.js required, no sudo |
+| Private Linux container | `compose.yml`; loopback-only host networking |
+| Public server with automatic HTTPS | `compose.public.yml`; Caddy, DNS, and a bootstrap password |
+| Air-gapped or managed server | Release archive plus `install-sivitacode.mjs` |
+| Contributor checkout | Root [README](../README.md#run-from-source) |
+
+All packaged routes consume the same immutable server archive and checksum. They do not resolve the internal npm dependency graph independently.
+
+## Rootless user install
+
+The pinned bootstrap verifies its own downloaded Node installer, detects Linux or macOS plus x64 or arm64, downloads the matching archive and checksum, and then delegates validation and atomic activation to `install-sivitacode.mjs`. Its defaults are `~/.local/share/sivitacode` for releases and `~/.local/bin` for the command. Set `SIVITACODE_INSTALL_ROOT` or `SIVITACODE_BIN_DIR` before the pipe to override them.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Maggotxy/sivitacode/sivitacode-install-v0.1.0-preview.1/deploy/install.sh | sh
+~/.local/bin/sivitacode web
+```
+
+Rerunning the command upgrades through the same atomic activation path. The current preview publishes Linux x64; a host without a matching asset fails before activation.
+
+## Private Linux Docker Compose
+
+Download the Compose definition into the project directory that the agent may edit. The definition uses host networking so SivitaCode retains its loopback-only security default, mounts the current directory at `/workspace`, and persists product state in the `sivitacode-data` volume.
+
+```sh
+curl -fsSLO https://github.com/Maggotxy/sivitacode/releases/download/dsh-v0.1.0-rc.5-sivitacode.1/compose.yml
+docker compose -f compose.yml up -d --build
+```
+
+Open `http://127.0.0.1:3080`, including through an SSH local-forward when Docker runs on a remote server. This route requires Linux host networking; macOS users should use the rootless installer or the public HTTPS composition.
+
+## Public HTTPS Docker Compose
+
+Point one DNS name at the server, allow inbound TCP 80 and 443, and run the public composition from the project directory the agent may edit. Caddy obtains and renews the certificate. SivitaCode is reachable only from the dedicated container network, requires its persistent administrator login, and trusts forwarded request facts only from that network's fixed CIDR.
+
+```sh
+curl -fsSLO https://github.com/Maggotxy/sivitacode/releases/download/dsh-v0.1.0-rc.5-sivitacode.1/compose.public.yml
+SIVITACODE_DOMAIN=code.example.com \
+SIVITACODE_WEB_PASSWORD='replace-with-at-least-12-characters' \
+docker compose -f compose.public.yml up -d --build
+```
+
+Keep the Compose file and named volumes for upgrades; rerun `docker compose ... up -d --build` after changing the pinned build input. Do not put secrets in the Compose file or repository.
+
+## Direct Docker build
+
+The Dockerfile installs and verifies the release during the image build instead of copying a source checkout. Host networking preserves the private loopback bind for this direct Linux run.
+
+```sh
+docker build -t sivitacode -f deploy/Dockerfile https://github.com/Maggotxy/sivitacode.git#sivitacode-install-v0.1.0-preview.1
+docker run --rm --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges -v "$PWD:/workspace" -v sivitacode-data:/var/lib/sivitacode sivitacode
+```
+
+## Verified release artifacts
+
+The release workflow is designed to publish four verified archives, their checksum files, and this repository's installer on [GitHub Releases](https://github.com/Maggotxy/sivitacode/releases). The current `dsh-v0.1.0-rc.5-sivitacode.1` preview contains Linux x64 only; the other native legs remain gated until the repository is authorized to update the release workflow. Release assets, rather than the internal npm package graph, are the supported public installation input.
 
 Build and verify the npm inputs on the same platform and CPU architecture as the destination, then produce the platform-specific archive. Building the Linux launcher requires a native musl toolchain (`musl-tools` on Ubuntu); macOS reproducible archives require GNU tar (`brew install gnu-tar`). Production servers need neither tool. `--from` accepts the dsh, vendored-framework, and Landlock pack directories; every supplied tarball is installed from local bytes into an isolated staging tree. The command sequence below is the Linux path; macOS packs the portable Landlock entry instead of a launcher and uses Seatbelt at runtime.
 

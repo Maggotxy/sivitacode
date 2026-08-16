@@ -12,6 +12,28 @@ SivitaCode 目前处于开发者预览阶段。首次稳定版本发布前，上
 
 ## 运行
 
+### 一行命令安装
+
+唯一运行时前置条件是 Node.js 22.19 或更高版本。固定版本的引导脚本会检测平台与 CPU，认证下载的安装器和服务器归档，无需 sudo 即可安装到 `~/.local/share/sivitacode`，并在 `~/.local/bin` 下发布 `sivitacode`：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Maggotxy/sivitacode/sivitacode-install-v0.1.0-preview.1/deploy/install.sh | sh
+~/.local/bin/sivitacode web
+```
+
+重新运行该命令即可原子升级。安装器会打印本机回滚命令。当前预览 release 提供 Linux x64 产物；如果没有匹配的 release 产物，检测会在不改变当前安装的情况下失败。
+
+### 一条命令运行 Docker Compose
+
+安装 Docker Compose v2 的 Linux 用户可以在希望 SivitaCode 编辑的项目目录中运行以下私有回环部署。它从同一份经过认证的 release 归档构建，在具名 volume 中持久化 SivitaCode 状态，把当前目录挂载为 `/workspace`，并在 `http://127.0.0.1:3080` 提供服务：
+
+```sh
+curl -fsSLO https://github.com/Maggotxy/sivitacode/releases/download/dsh-v0.1.0-rc.5-sivitacode.1/compose.yml
+docker compose -f compose.yml up -d --build
+```
+
+[部署参考](deploy/README.md)还提供使用 Caddy 的公网 HTTPS Compose 方案、直接 Docker 构建、systemd 安装、离线安装、升级与回滚说明。
+
 ### 安装已发布的服务器 release
 
 受支持的公开分发方式是适用于 `linux-x64`、`linux-arm64`、`darwin-x64` 或 `darwin-arm64` 的已验证 GitHub Release 归档。目标设备需要 Node.js 22.19 或更高版本，但不需要源码 checkout、pnpm、编译器或 npm registry。请从同一个 [release](https://github.com/Maggotxy/sivitacode/releases) 下载归档、相邻的 `.sha256` 和 `install-sivitacode.mjs`，再执行安装：

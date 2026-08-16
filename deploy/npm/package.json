@@ -1,6 +1,6 @@
 {
   "name": "sivitacode",
-  "version": "0.1.0-preview.1",
+  "version": "0.1.0-preview.2",
   "description": "Verified one-command launcher for the SivitaCode self-hosted coding agent",
   "type": "module",
   "bin": {

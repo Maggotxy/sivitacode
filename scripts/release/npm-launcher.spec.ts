@@ -35,6 +35,21 @@ ln -s "$target" "$SIVITACODE_BIN_DIR/sivitacode"
 printf 'bootstrap\\n' >> "$SIVITA_TEST_LOG"
 `
   const digest = createHash('sha256').update(bootstrap).digest('hex')
+  const bootstrapFile = join(root, 'bootstrap.sh')
+  writeFileSync(bootstrapFile, bootstrap)
+  executable(join(commands, 'curl'), `#!/bin/sh
+set -eu
+output=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output) output=$2; shift 2 ;;
+    --retry|--proto) shift 2 ;;
+    --*) shift ;;
+    *) shift ;;
+  esac
+done
+cp "$SIVITA_TEST_BOOTSTRAP" "$output"
+`)
   return {
     root,
     bin,
@@ -45,8 +60,9 @@ printf 'bootstrap\\n' >> "$SIVITA_TEST_LOG"
       HOME: home,
       PATH: `${commands}:/usr/bin:/bin`,
       SIVITACODE_BIN_DIR: bin,
-      SIVITACODE_BOOTSTRAP_URL: `data:text/plain;base64,${Buffer.from(bootstrap).toString('base64')}`,
+      SIVITACODE_BOOTSTRAP_URL: 'https://releases.example.invalid/install.sh',
       SIVITACODE_BOOTSTRAP_SHA256: digest,
+      SIVITA_TEST_BOOTSTRAP: bootstrapFile,
       SIVITA_TEST_LOG: log,
     },
   }

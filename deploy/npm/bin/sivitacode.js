@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { lstatSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -45,35 +45,36 @@ function hasPinnedCore(command, expectedVersion, env) {
   }
 }
 
-async function fetchBootstrap(env) {
+function downloadBootstrap(script, env) {
   const url = env.SIVITACODE_BOOTSTRAP_URL ?? BOOTSTRAP_URL
   const expectedDigest = env.SIVITACODE_BOOTSTRAP_SHA256 ?? BOOTSTRAP_SHA256
   if (!/^[a-f0-9]{64}$/.test(expectedDigest)) fail('bootstrap SHA-256 must be 64 lowercase hexadecimal characters')
 
-  const response = await fetch(url, {
-    redirect: 'follow',
-    signal: AbortSignal.timeout(30_000),
-    headers: { 'user-agent': 'sivitacode-npm-launcher' },
-  })
-  if (!response.ok) fail(`bootstrap download returned HTTP ${response.status}`)
-  const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_BOOTSTRAP_BYTES) fail('bootstrap download is too large')
+  // curl is already a core-installer prerequisite and honors the same proxy/TLS
+  // environment as the archive download on SSH and managed server hosts.
+  const download = spawnSync('curl', [
+    '--fail', '--location', '--silent', '--show-error', '--retry', '3',
+    '--proto', '=https', '--tlsv1.2', '--output', script, url,
+  ], { env, stdio: 'inherit' })
+  const downloadStatus = relay(download, 'bootstrap download')
+  if (downloadStatus !== 0) return downloadStatus
+  if (statSync(script).size > MAX_BOOTSTRAP_BYTES) fail('bootstrap download is too large')
 
-  const bytes = Buffer.from(await response.arrayBuffer())
-  if (bytes.length > MAX_BOOTSTRAP_BYTES) fail('bootstrap download is too large')
+  const bytes = readFileSync(script)
   const actualDigest = createHash('sha256').update(bytes).digest('hex')
   if (actualDigest !== expectedDigest) fail('bootstrap checksum mismatch')
-  return bytes
+  chmodSync(script, 0o700)
+  return 0
 }
 
-async function install(env) {
-  const bytes = await fetchBootstrap(env)
+function install(env) {
   const staging = mkdtempSync(join(tmpdir(), 'sivitacode-npm-'))
   const script = join(staging, 'install.sh')
   try {
     // npm remains a small discovery layer; the authenticated Release installer
     // continues to own platform selection, validation, activation, and rollback.
-    writeFileSync(script, bytes, { mode: 0o700 })
+    const downloadStatus = downloadBootstrap(script, env)
+    if (downloadStatus !== 0) return downloadStatus
     return relay(spawnSync('sh', [script], { env, stdio: 'inherit' }), 'bootstrap installer')
   } finally {
     rmSync(staging, { recursive: true, force: true })
@@ -85,7 +86,7 @@ async function main() {
   const command = installedCommand(env)
   const expectedVersion = env.SIVITACODE_ARTIFACT_VERSION ?? CORE_VERSION
   if (!hasPinnedCore(command, expectedVersion, env)) {
-    const installStatus = await install(env)
+    const installStatus = install(env)
     if (installStatus !== 0) return installStatus
   }
 
